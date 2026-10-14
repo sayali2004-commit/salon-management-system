@@ -712,6 +712,9 @@
             <button class="icon-action" data-act="view" title="View details">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
+            <button class="icon-action" data-act="visit" title="Record visit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+            </button>
             <button class="icon-action" data-act="edit" title="Edit">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
@@ -739,6 +742,10 @@
         if (act === 'view') viewCustomer(id);
         else if (act === 'edit') openCustomerForm(id);
         else if (act === 'delete') deleteCustomer(id);
+        else if (act === 'visit') {
+          const c = db.customers.find((x) => x.id === id);
+          openVisitForm(null, { customerId: id, employeeId: c?.employeeId || '', serviceId: c?.serviceId || '', amount: c?.totalAmount || '' });
+        }
       });
     });
   }
@@ -860,7 +867,29 @@
             data.id = nextId('cus');
             data.createdAt = new Date().toISOString();
             db.customers.push(data);
-            toast(`Customer added · ${data.id}`);
+
+            // Store the service given to this customer in the Visits section
+            if (data.serviceId) {
+              const svc = db.services.find((s) => s.id === data.serviceId);
+              const now = new Date();
+              db.visits.push({
+                id: nextId('visit'),
+                visitDateTime: new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+                customerId: data.id,
+                employeeId: data.employeeId || '',
+                serviceId: data.serviceId,
+                serviceName: svc?.name || '',
+                amount: data.totalAmount || svc?.price || '',
+                paymentMethod: data.paymentMethod || 'Cash',
+                paymentStatus: data.paymentStatus || 'Pending',
+                status: 'Completed',
+                notes: 'Service given on customer registration',
+                createdAt: now.toISOString(),
+              });
+              toast(`Customer added · ${data.id} · visit recorded`);
+            } else {
+              toast(`Customer added · ${data.id}`);
+            }
           }
           save();
           close();
@@ -943,12 +972,17 @@
       body,
       footer: `
         <button class="btn btn-ghost" data-act="close">Close</button>
+        <button class="btn btn-ghost" data-act="visit">Record Visit</button>
         <button class="btn btn-primary" data-act="edit">Edit Customer</button>`,
       onOpen: (wrap, close) => {
         wrap.querySelector('[data-act="close"]').addEventListener('click', close);
         wrap.querySelector('[data-act="edit"]').addEventListener('click', () => {
           close();
           openCustomerForm(id);
+        });
+        wrap.querySelector('[data-act="visit"]').addEventListener('click', () => {
+          close();
+          openVisitForm(null, { customerId: id, employeeId: c.employeeId || '', serviceId: c.serviceId || '', amount: c.totalAmount || '' });
         });
       },
     });
@@ -1077,7 +1111,7 @@
     });
   }
 
-  function openVisitForm(id = null) {
+  function openVisitForm(id = null, prefill = {}) {
     const visit = id ? db.visits.find((v) => v.id === id) : null;
 
     if (!db.employees.length || !db.customers.length) {
@@ -1085,17 +1119,31 @@
       return;
     }
 
+    const preCus = visit?.customerId || prefill.customerId || '';
+    const preEmp = visit?.employeeId || prefill.employeeId || '';
+    const preSvc = visit?.serviceId || prefill.serviceId || '';
+
+    let amountVal = visit?.amount || '';
+    if (!visit) {
+      if (prefill.amount !== undefined && prefill.amount !== null && prefill.amount !== '') amountVal = prefill.amount;
+      else if (preSvc) amountVal = db.services.find((s) => s.id === preSvc)?.price ?? '';
+    }
+
     const empOptions = db.employees
-      .map((e) => `<option value="${esc(e.id)}" ${visit?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.specialties || e.id)}</option>`)
+      .map((e) => `<option value="${esc(e.id)}" ${preEmp === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.specialties || e.id)}</option>`)
       .join('');
     const cusOptions = db.customers
-      .map((c) => `<option value="${esc(c.id)}" ${visit?.customerId === c.id ? 'selected' : ''}>${esc(c.fullName)} (${esc(c.id)})</option>`)
+      .map((c) => `<option value="${esc(c.id)}" ${preCus === c.id ? 'selected' : ''}>${esc(c.fullName)} (${esc(c.id)})</option>`)
       .join('');
     const svcOptions = db.services
-      .map((s) => `<option value="${esc(s.id)}" ${visit?.serviceId === s.id ? 'selected' : ''}>${esc(s.name)}${s.price ? ` (₹${esc(s.price)})` : ''}</option>`)
+      .map((s) => `<option value="${esc(s.id)}" ${preSvc === s.id ? 'selected' : ''}>${esc(s.name)}${s.price ? ` (₹${esc(s.price)})` : ''}</option>`)
       .join('');
 
-    const localDT = visit?.visitDateTime ? visit.visitDateTime.slice(0, 16) : '';
+    let localDT = visit?.visitDateTime ? visit.visitDateTime.slice(0, 16) : '';
+    if (!localDT && !visit) {
+      const now = new Date();
+      localDT = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
 
     const body = `
       <form id="visitForm" class="form-grid" autocomplete="off">
@@ -1132,7 +1180,7 @@
         </div>
         <div class="field">
           <label>Amount (₹)</label>
-          <input type="number" name="amount" min="0" step="0.01" placeholder="e.g. 1500" value="${esc(visit?.amount || '')}" />
+          <input type="number" name="amount" min="0" step="0.01" placeholder="e.g. 1500" value="${esc(amountVal)}" />
         </div>
 
         <div class="field">
@@ -1172,6 +1220,19 @@
         <button class="btn btn-primary" data-act="save">${visit ? 'Save Changes' : 'Save Visit'}</button>`,
       onOpen: (wrap, close) => {
         const form = $('#visitForm', wrap);
+
+        // When picking a customer, pull their assigned employee, service & amount from the customer record
+        if (!visit) {
+          form.customerId.addEventListener('change', () => {
+            const c = db.customers.find((x) => x.id === form.customerId.value);
+            if (!c) return;
+            if (c.employeeId && db.employees.some((e) => e.id === c.employeeId)) form.employeeId.value = c.employeeId;
+            if (c.serviceId && db.services.some((s) => s.id === c.serviceId)) {
+              form.serviceId.value = c.serviceId;
+              form.amount.value = c.totalAmount || db.services.find((s) => s.id === c.serviceId)?.price || '';
+            }
+          });
+        }
 
         form.serviceId.addEventListener('change', () => {
           const svc = db.services.find((s) => s.id === form.serviceId.value);
@@ -1529,13 +1590,23 @@
     });
 
     // Mobile menu
+    const sidebar = $('#sidebar');
+    const sidebarBackdrop = $('#sidebarBackdrop');
+
+    function closeSidebar() {
+      sidebar.classList.remove('open');
+      sidebarBackdrop.classList.remove('show');
+    }
+
     $('#menuToggle').addEventListener('click', () => {
-      $('#sidebar').classList.toggle('open');
+      const open = sidebar.classList.toggle('open');
+      sidebarBackdrop.classList.toggle('show', open);
     });
+    sidebarBackdrop.addEventListener('click', closeSidebar);
+    $$('.nav-item').forEach((btn) => btn.addEventListener('click', closeSidebar));
     document.addEventListener('click', (e) => {
-      const sidebar = $('#sidebar');
-      if (window.innerWidth <= 860 && sidebar.classList.contains('open') && !sidebar.contains(e.target) && !e.target.closest('#menuToggle')) {
-        sidebar.classList.remove('open');
+      if (window.innerWidth <= 860 && sidebar.classList.contains('open') && !sidebar.contains(e.target) && !e.target.closest('#menuToggle') && !e.target.closest('#sidebarBackdrop')) {
+        closeSidebar();
       }
     });
 
