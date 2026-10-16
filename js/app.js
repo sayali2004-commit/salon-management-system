@@ -12,8 +12,17 @@
     customers: [],
     visits: [],
     services: [],
-    counters: { emp: 0, cus: 0, visit: 0, svc: 0 },
+    appointments: [],
+    payments: [],
+    expenses: [],
+    maintenance: [],
+    attendance: [],
+    leaves: [],
+    salaries: [],
+    counters: { emp: 0, cus: 0, visit: 0, svc: 0, apt: 0, pay: 0, exp: 0, mnt: 0, att: 0, lv: 0, sal: 0 },
   };
+
+  const ID_PREFIX = { emp: 'EMP', cus: 'CUS', visit: 'VIS', svc: 'SVC', apt: 'APT', pay: 'PAY', exp: 'EXP', mnt: 'MNT', att: 'ATT', lv: 'LV', sal: 'SAL' };
 
   let db = load();
 
@@ -45,6 +54,9 @@
       }
       if (!Array.isArray(merged.visits)) merged.visits = [];
       delete merged.leads;
+      ['appointments', 'payments', 'expenses', 'maintenance', 'attendance', 'leaves', 'salaries'].forEach((k) => {
+        if (!Array.isArray(merged[k])) merged[k] = [];
+      });
       return merged;
     } catch {
       return structuredClone(defaultDB);
@@ -58,14 +70,12 @@
   function nextId(type) {
     db.counters[type] = (db.counters[type] || 0) + 1;
     const n = String(db.counters[type]).padStart(4, '0');
-    const prefix = { emp: 'EMP', cus: 'CUS', visit: 'VIS', svc: 'SVC' }[type];
-    return `${prefix}-${n}`;
+    return `${ID_PREFIX[type]}-${n}`;
   }
 
   function peekId(type) {
     const n = String((db.counters[type] || 0) + 1).padStart(4, '0');
-    const prefix = { emp: 'EMP', cus: 'CUS', visit: 'VIS', svc: 'SVC' }[type];
-    return `${prefix}-${n}`;
+    return `${ID_PREFIX[type]}-${n}`;
   }
 
   /* ---------------- Utilities ---------------- */
@@ -103,7 +113,7 @@
     if (isNaN(d)) return iso;
     return (
       d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
-      ' Â· ' +
+      ' · ' +
       d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     );
   }
@@ -111,6 +121,55 @@
   function todayISO() {
     const d = new Date();
     return d.toISOString().slice(0, 10);
+  }
+
+  function monthISO(d = new Date()) {
+    return d.toISOString().slice(0, 7);
+  }
+
+  function yearNum(d = new Date()) {
+    return d.getFullYear();
+  }
+
+  function fmtMonth(ym) {
+    if (!ym) return '·';
+    const [y, m] = ym.split('-');
+    const d = new Date(Number(y), Number(m) - 1, 1);
+    if (isNaN(d)) return ym;
+    return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+
+  function isOnlineMethod(method) {
+    return method === 'UPI' || method === 'Card' || method === 'Bank Transfer';
+  }
+
+  function daysBetween(fromISO, toISO) {
+    if (!fromISO || !toISO) return 0;
+    const a = new Date(fromISO + 'T00:00:00');
+    const b = new Date(toISO + 'T00:00:00');
+    if (isNaN(a) || isNaN(b)) return 0;
+    return Math.round((b - a) / 86400000) + 1;
+  }
+
+  function num(v) {
+    const n = Number(v);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function fmtMoney(v) {
+    return `₹${num(v).toLocaleString('en-IN')}`;
+  }
+
+  /* ---------------- Customer uniqueness (mobile dedup) ---------------- */
+  function mobileKey(mobile) {
+    const digits = String(mobile || '').replace(/\D/g, '');
+    return digits.length > 10 ? digits.slice(-10) : digits;
+  }
+
+  function findCustomerByMobile(mobile, excludeId = null) {
+    const key = mobileKey(mobile);
+    if (!key) return null;
+    return db.customers.find((c) => c.id !== excludeId && mobileKey(c.mobile) === key) || null;
   }
 
   function daysUntilBirthday(dobISO) {
@@ -216,14 +275,127 @@
     });
   }
 
+  /* ---------------- Autocomplete ---------------- */
+  function setupAutocomplete({ input, list, search, renderItem, onChoose, onAddNew, addNewLabel, emptyMessage, onQueryChange }) {
+    const wrap = input.closest('.autocomplete');
+    let items = [];
+    let activeIdx = -1;
+    let blurTimer = null;
+
+    function close() {
+      if (wrap) wrap.classList.remove('open');
+      activeIdx = -1;
+    }
+
+    function highlight(idx) {
+      const nodes = list.querySelectorAll('[data-ac-item]');
+      nodes.forEach((n, i) => n.classList.toggle('active', i === idx));
+      activeIdx = idx;
+      if (idx >= 0 && nodes[idx] && nodes[idx].scrollIntoView) nodes[idx].scrollIntoView({ block: 'nearest' });
+    }
+
+    function chooseByIndex(idx) {
+      if (idx < 0 || idx >= items.length) return;
+      const picked = items[idx];
+      close();
+      if (typeof onChoose === 'function') onChoose(picked);
+    }
+
+    function renderList() {
+      const q = input.value.trim().toLowerCase();
+      items = search(q);
+      activeIdx = -1;
+
+      let html = '';
+      if (!items.length) {
+        html = `<div class="ac-empty">${esc(emptyMessage)}</div>`;
+      } else {
+        html = items.map((it, i) => renderItem(it, i)).join('');
+      }
+      if (typeof onAddNew === 'function' && q) {
+        html += `<div class="ac-add" data-ac-add="1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          ${esc(addNewLabel || 'Add new')}
+        </div>`;
+      }
+      list.innerHTML = html;
+      if (wrap) wrap.classList.add('open');
+    }
+
+    input.addEventListener('focus', () => {
+      clearTimeout(blurTimer);
+      renderList();
+    });
+
+    input.addEventListener('blur', () => {
+      blurTimer = setTimeout(close, 160);
+    });
+
+    input.addEventListener('input', () => {
+      if (typeof onQueryChange === 'function') onQueryChange();
+      renderList();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (!wrap || !wrap.classList.contains('open')) renderList();
+        else highlight(Math.min(activeIdx + 1, items.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        highlight(Math.max(activeIdx - 1, 0));
+      } else if (e.key === 'Enter') {
+        if (wrap && wrap.classList.contains('open') && activeIdx >= 0) {
+          e.preventDefault();
+          chooseByIndex(activeIdx);
+        }
+      } else if (e.key === 'Escape') {
+        close();
+      }
+    });
+
+    list.addEventListener('mousedown', (e) => e.preventDefault());
+
+    list.addEventListener('click', (e) => {
+      const addBtn = e.target.closest('[data-ac-add]');
+      if (addBtn) {
+        close();
+        if (typeof onAddNew === 'function') onAddNew(input.value.trim());
+        return;
+      }
+      const item = e.target.closest('[data-ac-item]');
+      if (!item) return;
+      const idx = Number(item.dataset.acIndex);
+      chooseByIndex(idx);
+    });
+
+    return {
+      close,
+      refresh: renderList,
+      clear() {
+        items = [];
+        activeIdx = -1;
+        list.innerHTML = '';
+        close();
+      },
+    };
+  }
+
   /* ---------------- Navigation ---------------- */
   const SECTIONS = {
     dashboard: { title: 'Dashboard', sub: 'Overview of your management system' },
     employees: { title: 'Employees', sub: 'Create and manage your employee directory' },
     customers: { title: 'Customers', sub: 'Manage your customer records' },
     visits: { title: 'Visits', sub: 'Customer visits with assigned staff & payments' },
+    appointments: { title: 'Appointments', sub: 'Schedule appointments with existing customers' },
+    payments: { title: 'Payments', sub: 'Track every payment — cash & online' },
+    expenses: { title: 'Expenses', sub: 'Record and monitor business expenses' },
+    maintenance: { title: 'Maintenance', sub: 'Equipment servicing, repairs & cleaning tasks' },
     birthdays: { title: 'Birthdays', sub: 'Upcoming birthdays · employees & customers' },
     services: { title: 'Services', sub: 'Services offered by your business' },
+    attendance: { title: 'Attendance', sub: 'Mark and review daily employee attendance' },
+    leaves: { title: 'Leaves', sub: 'Employee leave requests & approvals' },
+    salary: { title: 'Salary', sub: 'Monthly salary records & payments' },
   };
 
   let currentSection = 'dashboard';
@@ -252,11 +424,32 @@
       case 'visits':
         renderVisits();
         break;
+      case 'appointments':
+        renderAppointments();
+        break;
+      case 'payments':
+        renderPayments();
+        break;
+      case 'expenses':
+        renderExpenses();
+        break;
+      case 'maintenance':
+        renderMaintenance();
+        break;
       case 'birthdays':
         renderBirthdays();
         break;
       case 'services':
         renderServices();
+        break;
+      case 'attendance':
+        renderAttendance();
+        break;
+      case 'leaves':
+        renderLeaves();
+        break;
+      case 'salary':
+        renderSalary();
         break;
     }
   }
@@ -396,7 +589,7 @@
       .map(
         (e) => `
       <tr data-id="${esc(e.id)}">
-        <td>
+        <td data-label="Employee">
           <div class="person-cell">
             ${avatarHTML(e)}
             <div>
@@ -405,12 +598,12 @@
             </div>
           </div>
         </td>
-        <td><strong style="color:var(--brand)">${esc(e.id)}</strong></td>
-        <td>${esc(e.staffRole || '·')}</td>
-        <td>${esc(e.specialties || '·')}</td>
-        <td>${esc(e.mobile || '·')}</td>
-        <td>${empStatusBadge(e.employmentStatus)}</td>
-        <td>${fmtDate(e.joiningDate)}</td>
+        <td data-label="Employee ID"><strong style="color:var(--brand)">${esc(e.id)}</strong></td>
+        <td data-label="Staff Role">${esc(e.staffRole || '·')}</td>
+        <td data-label="Specialties">${esc(e.specialties || '·')}</td>
+        <td data-label="Mobile">${esc(e.mobile || '·')}</td>
+        <td data-label="Status">${empStatusBadge(e.employmentStatus)}</td>
+        <td data-label="Joining Date">${fmtDate(e.joiningDate)}</td>
         <td class="col-actions">
           <div class="row-actions">
             <button class="icon-action" data-act="view" title="View details">
@@ -599,7 +792,7 @@
 
       <div class="detail-section-title">Personal Information</div>
       <div class="detail-grid">
-        <div class="detail-item"><div class="label">Date of Birth</div><div class="value">${fmtDate(e.dob)}${isTodayBirthday(e.dob) ? ' Â· ðŸŽ‚ Today!' : ''}</div></div>
+        <div class="detail-item"><div class="label">Date of Birth</div><div class="value">${fmtDate(e.dob)}${isTodayBirthday(e.dob) ? ' · 🎂 Today!' : ''}</div></div>
         <div class="detail-item"><div class="label">Gender</div><div class="value">${esc(e.gender || '·')}</div></div>
         <div class="detail-item"><div class="label">Mobile Number</div><div class="value">${esc(e.mobile || '·')}</div></div>
         <div class="detail-item span-2"><div class="label">Address</div><div class="value">${esc(e.address || '·')}</div></div>
@@ -638,14 +831,23 @@
   async function deleteEmployee(id) {
     const e = db.employees.find((x) => x.id === id);
     if (!e) return;
-    const related = db.visits.filter((v) => v.employeeId === id).length;
+    const related =
+      db.visits.filter((v) => v.employeeId === id).length +
+      db.attendance.filter((a) => a.employeeId === id).length +
+      db.leaves.filter((l) => l.employeeId === id).length +
+      db.salaries.filter((s) => s.employeeId === id).length +
+      db.maintenance.filter((m) => m.employeeId === id).length;
     const ok = await confirmDialog({
       title: 'Delete Employee',
-      message: `Are you sure you want to delete <strong>${esc(e.fullName)}</strong> (${esc(e.id)})?${related ? ` This will also remove <strong>${related}</strong> related visit${related === 1 ? '' : 's'}.` : ''} This action cannot be undone.`,
+      message: `Are you sure you want to delete <strong>${esc(e.fullName)}</strong> (${esc(e.id)})?${related ? ` This will also remove <strong>${related}</strong> related record${related === 1 ? '' : 's'} (visits, attendance, leaves, salary).` : ''} This action cannot be undone.`,
     });
     if (!ok) return;
     db.employees = db.employees.filter((x) => x.id !== id);
     db.visits = db.visits.filter((v) => v.employeeId !== id);
+    db.attendance = db.attendance.filter((a) => a.employeeId !== id);
+    db.leaves = db.leaves.filter((l) => l.employeeId !== id);
+    db.salaries = db.salaries.filter((s) => s.employeeId !== id);
+    db.maintenance = db.maintenance.filter((m) => m.employeeId !== id);
     save();
     renderAll();
     toast('Employee deleted');
@@ -654,7 +856,69 @@
   /* ================= CUSTOMERS ================= */
   let customerSearch = '';
 
+  function customerStatsData() {
+    const today = todayISO();
+    const thisMonth = monthISO();
+    const thisYear = String(yearNum());
+
+    const createdDate = (c) => (c.createdAt ? c.createdAt.slice(0, 10) : '');
+
+    const todayCount = db.customers.filter((c) => createdDate(c) === today).length;
+    const monthCount = db.customers.filter((c) => createdDate(c).slice(0, 7) === thisMonth).length;
+    const yearCount = db.customers.filter((c) => createdDate(c).slice(0, 4) === thisYear).length;
+
+    const online = db.customers.filter((c) => isOnlineMethod(c.paymentMethod));
+    const cash = db.customers.filter((c) => c.paymentMethod === 'Cash');
+
+    const sum = (arr) => arr.reduce((t, c) => t + num(c.paidAmount || c.totalAmount), 0);
+
+    return {
+      todayCount,
+      monthCount,
+      yearCount,
+      total: db.customers.length,
+      onlineCount: online.length,
+      cashCount: cash.length,
+      onlineAmount: sum(online),
+      cashAmount: sum(cash),
+    };
+  }
+
+  function renderCustomerStats() {
+    const s = customerStatsData();
+    const icons = {
+      sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
+      cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      year: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
+      users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+      online: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12h.01"/></svg>',
+      cash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>',
+    };
+
+    const cards = [
+      { label: "Today's Customers", value: s.todayCount, sub: `Added on ${fmtDate(todayISO())}`, icon: 'sun', accent: 'var(--sky)', bg: 'var(--sky-50)' },
+      { label: 'This Month', value: s.monthCount, sub: fmtMonth(monthISO()), icon: 'cal', accent: 'var(--brand)', bg: 'var(--brand-50)' },
+      { label: 'This Year', value: s.yearCount, sub: `${yearNum()} · ${s.total} total`, icon: 'year', accent: 'var(--violet)', bg: 'var(--violet-50)' },
+      { label: 'Online Payments', value: s.onlineCount, sub: `${fmtMoney(s.onlineAmount)} collected`, icon: 'online', accent: 'var(--green)', bg: 'var(--green-50)' },
+      { label: 'Cash Payments', value: s.cashCount, sub: `${fmtMoney(s.cashAmount)} collected`, icon: 'cash', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+    ];
+
+    $('#customerStats').innerHTML = cards
+      .map(
+        (c) => `
+      <div class="stat-card" style="--stat-accent:${c.accent};--stat-bg:${c.bg}">
+        <div class="stat-top"><div class="stat-icon">${icons[c.icon]}</div></div>
+        <div class="stat-value">${c.value}</div>
+        <div class="stat-label">${esc(c.label)}</div>
+        <div class="stat-sub">${esc(c.sub)}</div>
+      </div>`
+      )
+      .join('');
+  }
+
   function renderCustomers() {
+    renderCustomerStats();
+
     const q = customerSearch.toLowerCase();
     const list = db.customers.filter((c) => {
       if (!q) return true;
@@ -692,7 +956,7 @@
       .map(
         (c) => `
       <tr data-id="${esc(c.id)}">
-        <td>
+        <td data-label="Customer">
           <div class="person-cell">
             ${avatarHTML(c)}
             <div>
@@ -701,12 +965,12 @@
             </div>
           </div>
         </td>
-        <td><strong style="color:var(--brand)">${esc(c.id)}</strong></td>
-        <td>${esc(c.mobile || '·')}</td>
-        <td>${esc(c.email || '·')}</td>
-        <td>${esc(db.employees.find((e) => e.id === c.employeeId)?.fullName || '·')}</td>
-        <td>${c.totalAmount ? `<strong>₹${esc(c.totalAmount)}</strong>` : '·'} ${c.paymentStatus ? payStatusBadge(c.paymentStatus) : ''}</td>
-        <td>${fmtDate(c.dob)}${isTodayBirthday(c.dob) ? ' ðŸŽ‚' : ''}</td>
+        <td data-label="Customer ID"><strong style="color:var(--brand)">${esc(c.id)}</strong></td>
+        <td data-label="Mobile">${esc(c.mobile || '·')}</td>
+        <td data-label="Email">${esc(c.email || '·')}</td>
+        <td data-label="Assigned To">${esc(db.employees.find((e) => e.id === c.employeeId)?.fullName || '·')}</td>
+        <td data-label="Payment">${c.totalAmount ? `<strong>${fmtMoney(c.totalAmount)}</strong>` : '·'} ${c.paymentStatus ? payStatusBadge(c.paymentStatus) : ''}</td>
+        <td data-label="Date of Birth">${fmtDate(c.dob)}${isTodayBirthday(c.dob) ? ' 🎂' : ''}</td>
         <td class="col-actions">
           <div class="row-actions">
             <button class="icon-action" data-act="view" title="View details">
@@ -750,7 +1014,7 @@
     });
   }
 
-  function openCustomerForm(id = null) {
+  function openCustomerForm(id = null, opts = {}) {
     const cus = id ? db.customers.find((c) => c.id === id) : null;
 
     if (!id && (!db.employees.length || !db.services.length)) {
@@ -762,16 +1026,33 @@
       .map((e) => `<option value="${esc(e.id)}" ${cus?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.specialties || e.id)}</option>`)
       .join('');
     const svcOptions = db.services
-      .map((s) => `<option value="${esc(s.id)}" ${cus?.serviceId === s.id ? 'selected' : ''}>${esc(s.name)}${s.price ? ` (₹${esc(s.price)})` : ''}</option>`)
+      .map((s) => `<option value="${esc(s.id)}" ${cus?.serviceId === s.id ? 'selected' : ''}>${esc(s.name)}${s.price ? ` (${fmtMoney(s.price)})` : ''}</option>`)
       .join('');
 
+    const methods = [
+      { v: 'Cash', hint: 'Pay at counter' },
+      { v: 'UPI', hint: 'GPay / PhonePe' },
+      { v: 'Card', hint: 'Credit / Debit' },
+      { v: 'Bank Transfer', hint: 'NEFT / IMPS' },
+    ];
+    const selectedMethod = cus?.paymentMethod || 'Cash';
+
     const body = `
-      <form id="cusForm" class="form-grid" autocomplete="off">
-        <div class="field">
-          <label>Customer ID</label>
-          <div class="auto-id-box"><span>Auto-generated</span><span>${cus ? esc(cus.id) : peekId('cus')}</span></div>
+      <div class="modal-hero">
+        <div class="modal-hero-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
         </div>
-        <div class="field">
+        <div class="modal-hero-info">
+          <h3>${cus ? 'Edit Customer' : 'Add New Customer'}</h3>
+          <p>${cus ? `Update the details of ${esc(cus.id)}` : 'Register a customer & record their first payment'}</p>
+        </div>
+        <span class="modal-hero-id">${cus ? esc(cus.id) : peekId('cus')}</span>
+      </div>
+
+      <form id="cusForm" class="form-grid" autocomplete="off">
+        <div class="form-section-title first"><span class="num">1</span> Personal Information</div>
+
+        <div class="field span-2">
           <label>Full Name <span class="req">*</span></label>
           <input name="fullName" required placeholder="e.g. Farhan Ahmed" value="${esc(cus?.fullName || '')}" />
         </div>
@@ -782,14 +1063,20 @@
         </div>
         <div class="field">
           <label>Mobile Number <span class="req">*</span></label>
-          <input name="mobile" required placeholder="e.g. +91 91234 56789" value="${esc(cus?.mobile || '')}" />
+          <input type="tel" name="mobile" required placeholder="e.g. +91 91234 56789" value="${esc(cus?.mobile || '')}" />
         </div>
 
-        <div class="field">
+        <div class="field span-2">
           <label>Email Address <span class="req">*</span></label>
           <input type="email" name="email" required placeholder="e.g. customer@email.com" value="${esc(cus?.email || '')}" />
         </div>
-        <div class="field"></div>
+
+        <div class="field span-2">
+          <label>Address</label>
+          <textarea name="address" placeholder="Full address...">${esc(cus?.address || '')}</textarea>
+        </div>
+
+        <div class="form-section-title"><span class="num">2</span> Service &amp; Assignment</div>
 
         <div class="field">
           <label>Assigned Employee <span class="req">*</span></label>
@@ -806,6 +1093,8 @@
           </select>
         </div>
 
+        <div class="form-section-title"><span class="num">3</span> Payment Details</div>
+
         <div class="field">
           <label>Total Amount (₹)</label>
           <input type="number" name="totalAmount" min="0" step="0.01" placeholder="e.g. 2000" value="${esc(cus?.totalAmount || '')}" />
@@ -815,23 +1104,28 @@
           <input type="number" name="paidAmount" min="0" step="0.01" placeholder="e.g. 2000" value="${esc(cus?.paidAmount || '')}" />
         </div>
 
-        <div class="field">
+        <div class="field span-2">
           <label>Payment Method <span class="req">*</span></label>
-          <select name="paymentMethod" required>
-            ${['Cash', 'Card', 'UPI', 'Bank Transfer'].map((m) => `<option ${(cus?.paymentMethod || 'Cash') === m ? 'selected' : ''}>${m}</option>`).join('')}
-          </select>
+          <div class="pay-methods">
+            ${methods
+              .map(
+                (m) => `
+              <label class="pay-method">
+                <input type="radio" name="paymentMethod" value="${m.v}" ${selectedMethod === m.v ? 'checked' : ''} />
+                <span>${m.v}</span>
+              </label>`
+              )
+              .join('')}
+          </div>
         </div>
+
         <div class="field">
           <label>Payment Status <span class="req">*</span></label>
           <select name="paymentStatus" required>
             ${['Paid', 'Partial', 'Pending'].map((p) => `<option ${(cus?.paymentStatus || 'Pending') === p ? 'selected' : ''}>${p}</option>`).join('')}
           </select>
         </div>
-
-        <div class="field span-2">
-          <label>Address</label>
-          <textarea name="address" placeholder="Full address...">${esc(cus?.address || '')}</textarea>
-        </div>
+        <div class="field"></div>
 
         <div class="field span-2">
           <label>Notes</label>
@@ -841,7 +1135,7 @@
 
     openModal({
       title: cus ? 'Edit Customer' : 'Add Customer',
-      subtitle: cus ? `Updating ${cus.id}` : 'Fill in the customer details below',
+      subtitle: cus ? `Updating ${cus.id}` : 'New customer registration',
       size: 'lg',
       body,
       footer: `
@@ -858,7 +1152,23 @@
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
           if (!form.reportValidity()) return;
-          const data = Object.fromEntries(new FormData(form).entries());
+          const fd = new FormData(form);
+          const data = Object.fromEntries(fd.entries());
+          data.paymentMethod = fd.get('paymentMethod') || 'Cash';
+
+          // Prevent duplicate customers — mobile number must be unique
+          const duplicate = findCustomerByMobile(data.mobile, cus ? cus.id : null);
+          if (duplicate) {
+            if (!cus && opts.reuseOnDuplicateMobile) {
+              // Reuse the existing customer instead of creating a duplicate
+              toast(`Existing customer reused · ${duplicate.id} · ${duplicate.fullName}`);
+              if (typeof opts.onSelectExisting === 'function') opts.onSelectExisting(duplicate);
+              close();
+              return;
+            }
+            toast(`Mobile number already registered to ${duplicate.fullName} (${duplicate.id}). Each customer can only be added once.`, 'error');
+            return;
+          }
 
           if (cus) {
             Object.assign(cus, data);
@@ -886,10 +1196,24 @@
                 notes: 'Service given on customer registration',
                 createdAt: now.toISOString(),
               });
-              toast(`Customer added · ${data.id} · visit recorded`);
-            } else {
-              toast(`Customer added · ${data.id}`);
             }
+
+            // Auto-record a payment entry when an amount was paid
+            if (num(data.paidAmount) > 0) {
+              db.payments.push({
+                id: nextId('pay'),
+                customerId: data.id,
+                amount: data.paidAmount,
+                method: data.paymentMethod || 'Cash',
+                status: data.paymentStatus === 'Pending' ? 'Pending' : 'Paid',
+                date: todayISO(),
+                notes: 'Payment received on customer registration',
+                createdAt: new Date().toISOString(),
+              });
+            }
+
+            toast(`Customer added · ${data.id}${data.serviceId ? ' · visit recorded' : ''}`);
+            if (typeof opts.onCreated === 'function') opts.onCreated(data);
           }
           save();
           close();
@@ -923,7 +1247,7 @@
 
       <div class="detail-section-title">Personal Information</div>
       <div class="detail-grid">
-        <div class="detail-item"><div class="label">Date of Birth</div><div class="value">${fmtDate(c.dob)}${isTodayBirthday(c.dob) ? ' · ðŸŽ‚ Today!' : ''}</div></div>
+        <div class="detail-item"><div class="label">Date of Birth</div><div class="value">${fmtDate(c.dob)}${isTodayBirthday(c.dob) ? ' · 🎂 Today!' : ''}</div></div>
         <div class="detail-item"><div class="label">Mobile Number</div><div class="value">${esc(c.mobile || '·')}</div></div>
         <div class="detail-item"><div class="label">Email Address</div><div class="value">${esc(c.email || '·')}</div></div>
         <div class="detail-item span-2"><div class="label">Address</div><div class="value">${esc(c.address || '·')}</div></div>
@@ -991,14 +1315,17 @@
   async function deleteCustomer(id) {
     const c = db.customers.find((x) => x.id === id);
     if (!c) return;
-    const related = db.visits.filter((v) => v.customerId === id).length;
+    const related =
+      db.visits.filter((v) => v.customerId === id).length + db.appointments.filter((a) => a.customerId === id).length + db.payments.filter((p) => p.customerId === id).length;
     const ok = await confirmDialog({
       title: 'Delete Customer',
-      message: `Are you sure you want to delete <strong>${esc(c.fullName)}</strong> (${esc(c.id)})?${related ? ` This will also remove <strong>${related}</strong> related visit${related === 1 ? '' : 's'}.` : ''} This action cannot be undone.`,
+      message: `Are you sure you want to delete <strong>${esc(c.fullName)}</strong> (${esc(c.id)})?${related ? ` This will also remove <strong>${related}</strong> related record${related === 1 ? '' : 's'} (visits, appointments, payments).` : ''} This action cannot be undone.`,
     });
     if (!ok) return;
     db.customers = db.customers.filter((x) => x.id !== id);
     db.visits = db.visits.filter((v) => v.customerId !== id);
+    db.appointments = db.appointments.filter((a) => a.customerId !== id);
+    db.payments = db.payments.filter((p) => p.customerId !== id);
     save();
     renderAll();
     toast('Customer deleted');
@@ -1052,8 +1379,8 @@
         const cus = db.customers.find((c) => c.id === v.customerId);
         return `
       <tr data-id="${esc(v.id)}">
-        <td><strong style="color:var(--brand)">${esc(v.id)}</strong></td>
-        <td>
+        <td data-label="Visit ID"><strong style="color:var(--brand)">${esc(v.id)}</strong></td>
+        <td data-label="Customer">
           <div class="person-cell">
             ${avatarHTML(cus || { fullName: v.customerId })}
             <div>
@@ -1062,7 +1389,7 @@
             </div>
           </div>
         </td>
-        <td>
+        <td data-label="Assigned To">
           <div class="person-cell">
             ${avatarHTML(emp || { fullName: v.employeeId })}
             <div>
@@ -1071,10 +1398,10 @@
             </div>
           </div>
         </td>
-        <td>${esc(v.serviceName || '·')}</td>
-        <td>${fmtDateTime(v.visitDateTime)}</td>
-        <td>${v.amount ? `<strong>₹${esc(v.amount)}</strong>` : '·'} ${v.paymentStatus ? payStatusBadge(v.paymentStatus) : ''}</td>
-        <td>${statusBadge(v.status)}</td>
+        <td data-label="Service">${esc(v.serviceName || '·')}</td>
+        <td data-label="Visit Date &amp; Time">${fmtDateTime(v.visitDateTime)}</td>
+        <td data-label="Payment">${v.amount ? `<strong>${fmtMoney(v.amount)}</strong>` : '·'} ${v.paymentStatus ? payStatusBadge(v.paymentStatus) : ''}</td>
+        <td data-label="Status">${statusBadge(v.status)}</td>
         <td class="col-actions">
           <div class="row-actions">
             <button class="icon-action" data-act="view" title="View">
@@ -1345,6 +1672,550 @@
     toast('Visit deleted');
   }
 
+  /* ================= APPOINTMENTS ================= */
+  let appointmentSearch = '';
+  let appointmentFilterStatus = 'all';
+
+  function appointmentStatusBadge(status) {
+    const map = { Scheduled: 'badge-amber', Confirmed: 'badge-sky', Completed: 'badge-green', Cancelled: 'badge-red' };
+    return `<span class="badge ${map[status] || 'badge-gray'}">${esc(status || '·')}</span>`;
+  }
+
+  function sortSearchResults(list, q, textOf) {
+    if (!q) return list;
+    const starts = [];
+    const contains = [];
+    list.forEach((item) => {
+      const t = textOf(item);
+      (t.startsWith(q) ? starts : contains).push(item);
+    });
+    return starts.concat(contains);
+  }
+
+  function searchCustomersForAutocomplete(q) {
+    let list = db.customers;
+    if (q) {
+      list = list.filter((c) => {
+        const name = String(c.fullName || '').toLowerCase();
+        const mob = String(c.mobile || '').toLowerCase();
+        const id = String(c.id || '').toLowerCase();
+        return name.includes(q) || mob.includes(q) || id.includes(q);
+      });
+    }
+    return sortSearchResults(list, q, (c) => String(c.fullName || '').toLowerCase()).slice(0, 8);
+  }
+
+  function searchServicesForAutocomplete(q) {
+    let list = db.services.filter((s) => s.status !== 'Inactive');
+    if (q) {
+      list = list.filter((s) => {
+        const name = String(s.name || '').toLowerCase();
+        const cat = String(s.category || '').toLowerCase();
+        return name.includes(q) || cat.includes(q);
+      });
+    }
+    return sortSearchResults(list, q, (s) => String(s.name || '').toLowerCase()).slice(0, 8);
+  }
+
+  function renderAppointments() {
+    const today = todayISO();
+    const icons = {
+      today: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      upcoming: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+      cancel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    };
+
+    const active = (a) => a.status === 'Scheduled' || a.status === 'Confirmed';
+    const stats = [
+      { label: "Today's Appointments", value: db.appointments.filter((a) => a.date === today).length, sub: fmtDate(today), icon: 'today', accent: 'var(--brand)', bg: 'var(--brand-50)' },
+      { label: 'Upcoming', value: db.appointments.filter((a) => active(a) && a.date >= today).length, sub: 'Scheduled & confirmed', icon: 'upcoming', accent: 'var(--sky)', bg: 'var(--sky-50)' },
+      { label: 'Completed', value: db.appointments.filter((a) => a.status === 'Completed').length, sub: 'All time', icon: 'done', accent: 'var(--green)', bg: 'var(--green-50)' },
+      { label: 'Cancelled', value: db.appointments.filter((a) => a.status === 'Cancelled').length, sub: 'All time', icon: 'cancel', accent: 'var(--red)', bg: 'var(--red-50)' },
+    ];
+    $('#appointmentStats').innerHTML = stats
+      .map(
+        (s) => `
+      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-label">${esc(s.label)}</div>
+        <div class="stat-sub">${esc(s.sub)}</div>
+      </div>`
+      )
+      .join('');
+
+    const q = appointmentSearch.toLowerCase();
+    let list = [...db.appointments].sort((a, b) => `${b.date || ''}T${b.time || ''} ${b.createdAt || ''}`.localeCompare(`${a.date || ''}T${a.time || ''} ${a.createdAt || ''}`));
+    if (appointmentFilterStatus !== 'all') list = list.filter((a) => a.status === appointmentFilterStatus);
+    if (q) {
+      list = list.filter((a) => {
+        const cus = db.customers.find((c) => c.id === a.customerId);
+        const emp = db.employees.find((e) => e.id === a.employeeId);
+        return (
+          a.id.toLowerCase().includes(q) ||
+          (cus?.fullName || '').toLowerCase().includes(q) ||
+          (a.serviceName || '').toLowerCase().includes(q) ||
+          (emp?.fullName || '').toLowerCase().includes(q)
+        );
+      });
+    }
+
+    const tbody = $('#appointmentTable tbody');
+    const empty = $('#appointmentEmpty');
+    const tableWrap = $('#appointmentTable').closest('.table-wrap');
+
+    if (!db.appointments.length) {
+      tableWrap.style.display = 'none';
+      empty.style.display = 'block';
+      empty.querySelector('.empty-title').textContent = 'No appointments yet';
+      empty.querySelector('.empty-text').textContent = 'Schedule an appointment — pick an existing customer or add a new one.';
+      return;
+    }
+    tableWrap.style.display = '';
+    empty.style.display = list.length ? 'none' : 'block';
+    if (!list.length) {
+      empty.querySelector('.empty-title').textContent = 'No matching appointments';
+      empty.querySelector('.empty-text').textContent = 'Try a different filter or search.';
+      tbody.innerHTML = '';
+      return;
+    }
+
+    tbody.innerHTML = list
+      .map((a) => {
+        const cus = db.customers.find((c) => c.id === a.customerId);
+        const emp = db.employees.find((e) => e.id === a.employeeId);
+        return `
+      <tr data-id="${esc(a.id)}">
+        <td data-label="Appointment ID"><strong style="color:var(--brand)">${esc(a.id)}</strong></td>
+        <td data-label="Customer">
+          <div class="person-cell">
+            ${avatarHTML(cus || { fullName: a.customerId })}
+            <div>
+              <div class="person-name">${esc(cus?.fullName || 'Unknown customer')}</div>
+              <div class="person-meta">${esc(cus?.mobile || a.customerId || '')}</div>
+            </div>
+          </div>
+        </td>
+        <td data-label="Service">
+          <strong>${esc(a.serviceName || '·')}</strong>
+          <div class="person-meta">${a.price != null && a.price !== '' ? fmtMoney(a.price) : '·'}</div>
+        </td>
+        <td data-label="Assigned To">${esc(emp?.fullName || '·')}</td>
+        <td data-label="Date &amp; Time">${fmtDate(a.date)} · ${esc(a.time || '·')}</td>
+        <td data-label="Status">${appointmentStatusBadge(a.status)}</td>
+        <td class="col-actions">
+          <div class="row-actions">
+            <button class="icon-action" data-act="view" title="View">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <button class="icon-action" data-act="edit" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-action danger" data-act="delete" title="Delete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+      })
+      .join('');
+
+    $$('#appointmentTable tbody tr').forEach((tr) => {
+      tr.addEventListener('click', (ev) => {
+        if (ev.target.closest('button')) return;
+        viewAppointment(tr.dataset.id);
+      });
+    });
+
+    $$('#appointmentTable [data-act]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.closest('tr').dataset.id;
+        const act = btn.dataset.act;
+        if (act === 'view') viewAppointment(id);
+        else if (act === 'edit') openAppointmentForm(id);
+        else if (act === 'delete') deleteAppointment(id);
+      });
+    });
+  }
+
+  function openAppointmentForm(id = null) {
+    const apt = id ? db.appointments.find((a) => a.id === id) : null;
+
+    if (!db.employees.length) {
+      toast('Please add at least one employee first.', 'error');
+      return;
+    }
+
+    const empOptions = db.employees
+      .map((e) => `<option value="${esc(e.id)}" ${apt?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.id)}</option>`)
+      .join('');
+    const statuses = ['Scheduled', 'Confirmed', 'Completed', 'Cancelled'];
+
+    const body = `
+      <div class="modal-hero">
+        <div class="modal-hero-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 15 11 17 15 13"/></svg>
+        </div>
+        <div class="modal-hero-info">
+          <h3>${apt ? 'Edit Appointment' : 'New Appointment'}</h3>
+          <p>${apt ? `Update ${esc(apt.id)}` : 'Search an existing customer — no need to re-add them'}</p>
+        </div>
+        <span class="modal-hero-id">${apt ? esc(apt.id) : peekId('apt')}</span>
+      </div>
+
+      <form id="aptForm" class="form-grid" autocomplete="off">
+        <div class="form-section-title first"><span class="num">1</span> Customer</div>
+
+        <div class="field">
+          <label>Customer <span class="req">*</span></label>
+          <div class="autocomplete">
+            <input type="text" id="aptCustomerInput" placeholder="Type name or mobile to search..." autocomplete="off" />
+            <div class="ac-list" id="aptCustomerList"></div>
+          </div>
+          <input type="hidden" name="customerId" id="aptCustomerId" value="${esc(apt?.customerId || '')}" />
+        </div>
+        <div class="field">
+          <label>Assigned Employee <span class="req">*</span></label>
+          <select name="employeeId" required>
+            <option value="">Select employee</option>
+            ${empOptions}
+          </select>
+        </div>
+
+        <div class="linked-record span-2" id="aptCustomerPreview" hidden></div>
+
+        <div class="form-section-title"><span class="num">2</span> Service &amp; Pricing</div>
+
+        <div class="field">
+          <label>Service <span class="req">*</span></label>
+          <div class="autocomplete">
+            <input type="text" id="aptServiceInput" placeholder="Type service name to search..." autocomplete="off" />
+            <div class="ac-list" id="aptServiceList"></div>
+          </div>
+          <input type="hidden" name="serviceId" id="aptServiceId" value="${esc(apt?.serviceId || '')}" />
+        </div>
+        <div class="field">
+          <label>Service Price (auto-filled)</label>
+          <div class="auto-price-box empty" id="aptPriceBox">Select a service to auto-fill price</div>
+          <input type="hidden" name="price" id="aptPrice" value="${esc(apt?.price ?? '')}" />
+        </div>
+
+        <div class="form-section-title"><span class="num">3</span> Date &amp; Time</div>
+
+        <div class="field">
+          <label>Appointment Date <span class="req">*</span></label>
+          <input type="date" name="date" required value="${esc(apt?.date || todayISO())}" />
+        </div>
+        <div class="field">
+          <label>Appointment Time <span class="req">*</span></label>
+          <input type="time" name="time" required value="${esc(apt?.time || '')}" />
+        </div>
+
+        <div class="field">
+          <label>Status <span class="req">*</span></label>
+          <select name="status" required>
+            ${statuses.map((s) => `<option ${(apt?.status || 'Scheduled') === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"></div>
+
+        <div class="field span-2">
+          <label>Notes</label>
+          <textarea name="notes" placeholder="Any notes for this appointment...">${esc(apt?.notes || '')}</textarea>
+        </div>
+      </form>`;
+
+    openModal({
+      title: apt ? 'Edit Appointment' : 'New Appointment',
+      subtitle: apt ? `Updating ${apt.id}` : 'Customer & service autocomplete enabled',
+      size: 'lg',
+      body,
+      footer: `
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="save">${apt ? 'Save Changes' : 'Save Appointment'}</button>`,
+      onOpen: (wrap, close) => {
+        const form = $('#aptForm', wrap);
+        const custInput = $('#aptCustomerInput', wrap);
+        const custList = $('#aptCustomerList', wrap);
+        const custIdInput = $('#aptCustomerId', wrap);
+        const preview = $('#aptCustomerPreview', wrap);
+        const svcInput = $('#aptServiceInput', wrap);
+        const svcList = $('#aptServiceList', wrap);
+        const svcIdInput = $('#aptServiceId', wrap);
+        const priceBox = $('#aptPriceBox', wrap);
+        const priceInput = $('#aptPrice', wrap);
+        const saveBtn = wrap.querySelector('[data-act="save"]');
+
+        let saving = false;
+
+        function selectCustomer(cus) {
+          custIdInput.value = cus.id;
+          custInput.value = cus.fullName || '';
+          preview.hidden = false;
+          preview.innerHTML = `
+            ${avatarHTML(cus)}
+            <div class="lr-info">
+              <div class="lr-name">${esc(cus.fullName)}</div>
+              <div class="lr-meta">${esc(cus.mobile || '')}${cus.email ? ' · ' + esc(cus.email) : ''}</div>
+              <span class="lr-id">${esc(cus.id)}</span>
+            </div>
+            <button type="button" class="linked-clear" data-act="clear-customer" title="Clear customer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>`;
+          const clearBtn = preview.querySelector('[data-act="clear-customer"]');
+          if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+              custIdInput.value = '';
+              custInput.value = '';
+              preview.hidden = true;
+              preview.innerHTML = '';
+              custInput.focus();
+            });
+          }
+        }
+
+        function clearCustomerSelection() {
+          if (!custIdInput.value) return;
+          custIdInput.value = '';
+          preview.hidden = true;
+          preview.innerHTML = '';
+        }
+
+        function selectService(svc) {
+          svcIdInput.value = svc.id;
+          svcInput.value = svc.name || '';
+          priceInput.value = svc.price != null ? svc.price : '';
+          if (svc.price != null && svc.price !== '') {
+            priceBox.classList.remove('empty');
+            priceBox.innerHTML = `${fmtMoney(svc.price)} <span class="price-unit">/ ${esc(svc.unit || 'service')}</span>`;
+          } else {
+            priceBox.classList.add('empty');
+            priceBox.textContent = 'No price set for this service';
+          }
+        }
+
+        function clearServiceSelection() {
+          if (!svcIdInput.value) return;
+          svcIdInput.value = '';
+          priceInput.value = '';
+          priceBox.classList.add('empty');
+          priceBox.textContent = 'Select a service to auto-fill price';
+        }
+
+        setupAutocomplete({
+          input: custInput,
+          list: custList,
+          emptyMessage: 'No customer found. Use "Add new customer" below to create one.',
+          addNewLabel: 'Add new customer',
+          search: (q) => searchCustomersForAutocomplete(q),
+          renderItem: (c, i) => `
+            <div class="ac-item" data-ac-item data-ac-index="${i}" data-id="${esc(c.id)}">
+              ${avatarHTML(c)}
+              <div class="ac-info">
+                <div class="ac-name">${esc(c.fullName)}</div>
+                <div class="ac-meta">${esc(c.mobile || '')}${c.email ? ' · ' + esc(c.email) : ''}</div>
+              </div>
+              <span class="ac-badge badge badge-brand">${esc(c.id)}</span>
+            </div>`,
+          onChoose: (cus) => selectCustomer(cus),
+          onQueryChange: clearCustomerSelection,
+          onAddNew: () => {
+            openCustomerForm(null, {
+              reuseOnDuplicateMobile: true,
+              onCreated: (cus) => selectCustomer(cus),
+              onSelectExisting: (cus) => selectCustomer(cus),
+            });
+          },
+        });
+
+        setupAutocomplete({
+          input: svcInput,
+          list: svcList,
+          emptyMessage: 'No service found. Please add it in the Services section first.',
+          addNewLabel: 'Add new service',
+          search: (q) => searchServicesForAutocomplete(q),
+          renderItem: (s, i) => `
+            <div class="ac-item" data-ac-item data-ac-index="${i}" data-id="${esc(s.id)}">
+              <div class="ac-info">
+                <div class="ac-name">${esc(s.name)}</div>
+                <div class="ac-meta">${esc(s.category || 'General')}</div>
+              </div>
+              <span class="ac-price">${s.price != null && s.price !== '' ? fmtMoney(s.price) : 'No price'}</span>
+            </div>`,
+          onChoose: (svc) => selectService(svc),
+          onQueryChange: clearServiceSelection,
+          onAddNew: () => {
+            close();
+            goto('services');
+            openServiceForm();
+          },
+        });
+
+        // Prefill for edit mode
+        if (apt?.customerId) {
+          const cus = db.customers.find((c) => c.id === apt.customerId);
+          if (cus) selectCustomer(cus);
+        }
+        if (apt?.serviceId) {
+          const svc = db.services.find((s) => s.id === apt.serviceId);
+          if (svc) selectService(svc);
+          else {
+            priceBox.classList.remove('empty');
+            priceBox.innerHTML = `${apt.price != null && apt.price !== '' ? fmtMoney(apt.price) : '·'} <span class="price-unit">saved rate</span>`;
+            svcInput.value = apt.serviceName || '';
+          }
+        }
+
+        wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
+        saveBtn.addEventListener('click', () => {
+          if (saving) return;
+          if (!form.reportValidity()) return;
+
+          const fd = new FormData(form);
+          const data = Object.fromEntries(fd.entries());
+
+          if (!data.customerId) {
+            toast('Please select a customer from the suggestions, or add a new one.', 'error');
+            custInput.focus();
+            return;
+          }
+          const cus = db.customers.find((c) => c.id === data.customerId);
+          if (!cus) {
+            toast('Selected customer no longer exists. Please search again.', 'error');
+            custIdInput.value = '';
+            custInput.value = '';
+            return;
+          }
+          if (!data.serviceId) {
+            toast('Please select a service from the suggestions.', 'error');
+            svcInput.focus();
+            return;
+          }
+          const svc = db.services.find((s) => s.id === data.serviceId);
+          if (!svc) {
+            toast('Selected service no longer exists. Please search again or add it in Services.', 'error');
+            svcIdInput.value = '';
+            svcInput.value = '';
+            return;
+          }
+          if (!data.date || !data.time) {
+            toast('Please choose appointment date and time.', 'error');
+            return;
+          }
+
+          // Prevent double bookings for the same customer at the same date & time
+          const dup = db.appointments.find(
+            (a) => a.id !== (apt ? apt.id : null) && a.customerId === data.customerId && a.date === data.date && a.time === data.time && a.status !== 'Cancelled'
+          );
+          if (dup) {
+            toast(`${cus.fullName} already has an appointment at this date & time (${dup.id}).`, 'error');
+            return;
+          }
+
+          // Always store the latest service name & price from the Services section
+          data.serviceName = svc.name;
+          data.price = svc.price != null && svc.price !== '' ? svc.price : '';
+
+          saving = true;
+          saveBtn.disabled = true;
+
+          if (apt) {
+            Object.assign(apt, data);
+            apt.updatedAt = new Date().toISOString();
+            toast('Appointment updated successfully');
+          } else {
+            data.id = nextId('apt');
+            data.createdAt = new Date().toISOString();
+            db.appointments.push(data);
+            toast(`Appointment booked · ${data.id} · ${cus.fullName}`);
+          }
+          save();
+          close();
+          renderAll();
+        });
+      },
+    });
+  }
+
+  function viewAppointment(id) {
+    const a = db.appointments.find((x) => x.id === id);
+    if (!a) return;
+    const cus = db.customers.find((c) => c.id === a.customerId);
+    const emp = db.employees.find((e) => e.id === a.employeeId);
+
+    const body = `
+      <div class="profile-hero">
+        ${avatarHTML(cus || { fullName: a.customerId }, 'avatar-xl')}
+        <div class="profile-hero-info">
+          <h2>${esc(a.serviceName || 'Salon Appointment')}</h2>
+          <div class="role">${esc(cus?.fullName || 'Unknown customer')} · ${fmtDate(a.date)} · ${esc(a.time || '·')}</div>
+          <div class="badges">
+            <span class="badge badge-brand">${esc(a.id)}</span>
+            ${appointmentStatusBadge(a.status)}
+            ${a.price != null && a.price !== '' ? `<span class="badge badge-green">${fmtMoney(a.price)}</span>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-section-title">Appointment Details</div>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Date</div><div class="value">${fmtDate(a.date)}</div></div>
+        <div class="detail-item"><div class="label">Time</div><div class="value">${esc(a.time || '·')}</div></div>
+        <div class="detail-item"><div class="label">Service</div><div class="value">${esc(a.serviceName || '·')}</div></div>
+        <div class="detail-item"><div class="label">Service Price</div><div class="value">${a.price != null && a.price !== '' ? fmtMoney(a.price) : '·'}</div></div>
+        <div class="detail-item"><div class="label">Status</div><div class="value">${appointmentStatusBadge(a.status)}</div></div>
+        <div class="detail-item"><div class="label">Notes</div><div class="value">${esc(a.notes || '·')}</div></div>
+      </div>
+
+      <div class="detail-section-title">Customer</div>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Name</div><div class="value">${esc(cus?.fullName || 'Unknown')}</div></div>
+        <div class="detail-item"><div class="label">Mobile</div><div class="value">${esc(cus?.mobile || '·')}</div></div>
+        <div class="detail-item"><div class="label">Email</div><div class="value">${esc(cus?.email || '·')}</div></div>
+        <div class="detail-item"><div class="label">Customer ID</div><div class="value">${esc(cus?.id || a.customerId)}</div></div>
+      </div>
+
+      <div class="detail-section-title">Assigned Employee</div>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Name</div><div class="value">${esc(emp?.fullName || '·')}</div></div>
+        <div class="detail-item"><div class="label">Staff Role</div><div class="value">${esc(emp?.staffRole || '·')}</div></div>
+      </div>`;
+
+    openModal({
+      title: 'Appointment Details',
+      subtitle: a.id,
+      size: 'lg',
+      body,
+      footer: `
+        <button class="btn btn-ghost" data-act="close">Close</button>
+        <button class="btn btn-primary" data-act="edit">Edit Appointment</button>`,
+      onOpen: (wrap, close) => {
+        wrap.querySelector('[data-act="close"]').addEventListener('click', close);
+        wrap.querySelector('[data-act="edit"]').addEventListener('click', () => {
+          close();
+          openAppointmentForm(id);
+        });
+      },
+    });
+  }
+
+  async function deleteAppointment(id) {
+    const a = db.appointments.find((x) => x.id === id);
+    if (!a) return;
+    const cus = db.customers.find((c) => c.id === a.customerId);
+    const ok = await confirmDialog({
+      title: 'Delete Appointment',
+      message: `Are you sure you want to delete appointment <strong>${esc(a.id)}</strong> of <strong>${esc(cus?.fullName || a.customerId)}</strong> on ${fmtDate(a.date)}? This action cannot be undone.`,
+    });
+    if (!ok) return;
+    db.appointments = db.appointments.filter((x) => x.id !== id);
+    save();
+    renderAll();
+    toast('Appointment deleted');
+  }
+
   /* ================= BIRTHDAYS ================= */
   let birthdayFilter = 'all';
 
@@ -1402,7 +2273,7 @@
             <div class="date">${fmtDate(b.person.dob)}</div>
           </div>
           <div class="days-pill ${pillClass}">
-            <div class="num">${b.days === 0 ? 'ðŸŽ‚' : b.days}</div>
+            <div class="num">${b.days === 0 ? '🎂' : b.days}</div>
             <div class="lbl">${daysLabel}</div>
           </div>
         </div>`;
@@ -1460,7 +2331,7 @@
         <h4>${esc(s.name)}</h4>
         <p class="desc">${esc(s.description || 'No description provided.')}</p>
         <div class="service-meta">
-          <div class="service-price">${s.price != null && s.price !== '' ? `${esc(s.currency || 'â‚¹')}${Number(s.price).toLocaleString('en-IN')}` : '·'} <small>${s.price != null && s.price !== '' ? '/ ' + esc(s.unit || 'service') : ''}</small></div>
+          <div class="service-price">${s.price != null && s.price !== '' ? `${fmtMoney(s.price)}` : '·'} <small>${s.price != null && s.price !== '' ? '/ ' + esc(s.unit || 'service') : ''}</small></div>
           ${s.status === 'Active' ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-gray">Inactive</span>'}
         </div>
       </div>`
@@ -1537,7 +2408,7 @@
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
           if (!form.reportValidity()) return;
           const data = Object.fromEntries(new FormData(form).entries());
-          data.currency = 'â‚¹';
+          data.currency = '₹';
 
           if (svc) {
             Object.assign(svc, data);
@@ -1568,6 +2439,1401 @@
     save();
     renderAll();
     toast('Service deleted');
+  }
+
+  /* ================= PAYMENTS ================= */
+  let paymentSearch = '';
+  let paymentFilterMethod = 'all';
+  let paymentFilterStatus = 'all';
+
+  function renderPayments() {
+    // Stats
+    const today = todayISO();
+    const thisMonth = monthISO();
+    const thisYear = String(yearNum());
+    const paid = db.payments.filter((p) => p.status === 'Paid');
+    const sum = (arr) => arr.reduce((t, p) => t + num(p.amount), 0);
+
+    const stats = [
+      { label: "Today's Collections", value: fmtMoney(sum(db.payments.filter((p) => p.date === today))), sub: `${db.payments.filter((p) => p.date === today).length} transactions`, icon: 'sun', accent: 'var(--sky)', bg: 'var(--sky-50)' },
+      { label: 'This Month', value: fmtMoney(sum(db.payments.filter((p) => (p.date || '').slice(0, 7) === thisMonth))), sub: fmtMonth(thisMonth), icon: 'cal', accent: 'var(--brand)', bg: 'var(--brand-50)' },
+      { label: 'This Year', value: fmtMoney(sum(db.payments.filter((p) => (p.date || '').slice(0, 4) === thisYear))), sub: `${yearNum()}`, icon: 'year', accent: 'var(--violet)', bg: 'var(--violet-50)' },
+      { label: 'Cash', value: fmtMoney(sum(paid.filter((p) => p.method === 'Cash'))), sub: `${paid.filter((p) => p.method === 'Cash').length} payments`, icon: 'cash', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+      { label: 'Online', value: fmtMoney(sum(paid.filter((p) => isOnlineMethod(p.method)))), sub: `${paid.filter((p) => isOnlineMethod(p.method)).length} payments`, icon: 'online', accent: 'var(--green)', bg: 'var(--green-50)' },
+    ];
+
+    const icons = {
+      sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
+      cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      year: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
+      online: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12h.01"/></svg>',
+      cash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>',
+    };
+    $('#paymentStats').innerHTML = stats
+      .map(
+        (s) => `
+      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-label">${esc(s.label)}</div>
+        <div class="stat-sub">${esc(s.sub)}</div>
+      </div>`
+      )
+      .join('');
+
+    // List
+    const q = paymentSearch.toLowerCase();
+    let list = [...db.payments].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    if (paymentFilterMethod === 'Cash') list = list.filter((p) => p.method === 'Cash');
+    else if (paymentFilterMethod === 'online') list = list.filter((p) => isOnlineMethod(p.method));
+    if (paymentFilterStatus !== 'all') list = list.filter((p) => p.status === paymentFilterStatus);
+    if (q) {
+      list = list.filter((p) => {
+        const cus = db.customers.find((c) => c.id === p.customerId);
+        return p.id.toLowerCase().includes(q) || (cus?.fullName || '').toLowerCase().includes(q) || (p.notes || '').toLowerCase().includes(q);
+      });
+    }
+
+    const tbody = $('#paymentTable tbody');
+    const empty = $('#paymentEmpty');
+    const tableWrap = $('#paymentTable').closest('.table-wrap');
+
+    if (!db.payments.length) {
+      tableWrap.style.display = 'none';
+      empty.style.display = 'block';
+      empty.querySelector('.empty-title').textContent = 'No payments yet';
+      empty.querySelector('.empty-text').textContent = 'Record your first payment to start tracking revenue.';
+      return;
+    }
+    tableWrap.style.display = '';
+    empty.style.display = list.length ? 'none' : 'block';
+    if (!list.length) {
+      empty.querySelector('.empty-title').textContent = 'No matching payments';
+      empty.querySelector('.empty-text').textContent = 'Try a different filter or search.';
+      tbody.innerHTML = '';
+      return;
+    }
+
+    tbody.innerHTML = list
+      .map((p) => {
+        const cus = db.customers.find((c) => c.id === p.customerId);
+        return `
+      <tr data-id="${esc(p.id)}">
+        <td data-label="Payment ID"><strong style="color:var(--brand)">${esc(p.id)}</strong></td>
+        <td data-label="Customer">
+          <div class="person-cell">
+            ${avatarHTML(cus || { fullName: p.customerId || 'Walk-in' })}
+            <div>
+              <div class="person-name">${esc(cus?.fullName || 'Walk-in Customer')}</div>
+              <div class="person-meta">${esc(p.customerId || '')}</div>
+            </div>
+          </div>
+        </td>
+        <td data-label="Amount"><strong class="amount-green">${fmtMoney(p.amount)}</strong></td>
+        <td data-label="Method">${methodBadge(p.method)}</td>
+        <td data-label="Status">${payStatusBadge(p.status)}</td>
+        <td data-label="Date">${fmtDate(p.date)}</td>
+        <td data-label="Notes">${esc(p.notes || '·')}</td>
+        <td class="col-actions">
+          <div class="row-actions">
+            <button class="icon-action" data-act="view" title="View">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <button class="icon-action" data-act="edit" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-action danger" data-act="delete" title="Delete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+      })
+      .join('');
+
+    $$('#paymentTable tbody tr').forEach((tr) => {
+      tr.addEventListener('click', (ev) => {
+        if (ev.target.closest('button')) return;
+        viewPayment(tr.dataset.id);
+      });
+    });
+    $$('#paymentTable [data-act]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.closest('tr').dataset.id;
+        const act = btn.dataset.act;
+        if (act === 'view') viewPayment(id);
+        else if (act === 'edit') openPaymentForm(id);
+        else if (act === 'delete') deletePayment(id);
+      });
+    });
+  }
+
+  function methodBadge(method) {
+    const cls = isOnlineMethod(method) ? 'badge-green' : method === 'Cash' ? 'badge-amber' : 'badge-gray';
+    return `<span class="badge ${cls}">${esc(method || '·')}</span>`;
+  }
+
+  function payMethodRadios(selected) {
+    const methods = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
+    return `<div class="pay-methods">
+      ${methods
+        .map(
+          (m) => `
+        <label class="pay-method">
+          <input type="radio" name="method" value="${m}" ${(selected || 'Cash') === m ? 'checked' : ''} />
+          <span>${m}</span>
+        </label>`
+        )
+        .join('')}
+    </div>`;
+  }
+
+  function openPaymentForm(id = null) {
+    const pay = id ? db.payments.find((p) => p.id === id) : null;
+    const cusOptions = db.customers
+      .map((c) => `<option value="${esc(c.id)}" ${pay?.customerId === c.id ? 'selected' : ''}>${esc(c.fullName)} (${esc(c.id)})</option>`)
+      .join('');
+
+    const body = `
+      <div class="modal-hero">
+        <div class="modal-hero-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        </div>
+        <div class="modal-hero-info">
+          <h3>${pay ? 'Edit Payment' : 'Record Payment'}</h3>
+          <p>${pay ? `Update ${esc(pay.id)}` : 'Log a cash or online payment received'}</p>
+        </div>
+        <span class="modal-hero-id">${pay ? esc(pay.id) : peekId('pay')}</span>
+      </div>
+
+      <form id="payForm" class="form-grid" autocomplete="off">
+        <div class="field span-2">
+          <label>Customer</label>
+          <select name="customerId">
+            <option value="">Walk-in customer (no record)</option>
+            ${cusOptions}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Amount (₹) <span class="req">*</span></label>
+          <input type="number" name="amount" min="0" step="0.01" required placeholder="e.g. 1500" value="${esc(pay?.amount || '')}" />
+        </div>
+        <div class="field">
+          <label>Payment Date <span class="req">*</span></label>
+          <input type="date" name="date" required value="${esc(pay?.date || todayISO())}" />
+        </div>
+
+        <div class="field span-2">
+          <label>Payment Method <span class="req">*</span></label>
+          ${payMethodRadios(pay?.method)}
+        </div>
+
+        <div class="field">
+          <label>Status <span class="req">*</span></label>
+          <select name="status" required>
+            ${['Paid', 'Pending'].map((s) => `<option ${(pay?.status || 'Paid') === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"></div>
+
+        <div class="field span-2">
+          <label>Notes</label>
+          <textarea name="notes" placeholder="e.g. Payment for hair color service...">${esc(pay?.notes || '')}</textarea>
+        </div>
+      </form>`;
+
+    openModal({
+      title: pay ? 'Edit Payment' : 'Add Payment',
+      subtitle: pay ? `Updating ${pay.id}` : 'Record a new payment',
+      size: 'lg',
+      body,
+      footer: `
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="save">${pay ? 'Save Changes' : 'Add Payment'}</button>`,
+      onOpen: (wrap, close) => {
+        const form = $('#payForm', wrap);
+        wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
+        wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
+          if (!form.reportValidity()) return;
+          const fd = new FormData(form);
+          const data = Object.fromEntries(fd.entries());
+          data.method = fd.get('method') || 'Cash';
+
+          if (pay) {
+            Object.assign(pay, data);
+            toast('Payment updated successfully');
+          } else {
+            data.id = nextId('pay');
+            data.createdAt = new Date().toISOString();
+            db.payments.push(data);
+            toast(`Payment recorded · ${data.id}`);
+          }
+          save();
+          close();
+          renderAll();
+        });
+      },
+    });
+  }
+
+  function viewPayment(id) {
+    const p = db.payments.find((x) => x.id === id);
+    if (!p) return;
+    const cus = db.customers.find((c) => c.id === p.customerId);
+
+    const body = `
+      <div class="profile-hero">
+        ${avatarHTML(cus || { fullName: 'Walk-in' }, 'avatar-xl')}
+        <div class="profile-hero-info">
+          <h2>${fmtMoney(p.amount)}</h2>
+          <div class="role">${esc(cus?.fullName || 'Walk-in Customer')} · ${esc(p.method || '·')}</div>
+          <div class="badges">
+            <span class="badge badge-brand">${esc(p.id)}</span>
+            ${payStatusBadge(p.status)}
+            ${methodBadge(p.method)}
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-section-title">Payment Information</div>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Amount</div><div class="value">${fmtMoney(p.amount)}</div></div>
+        <div class="detail-item"><div class="label">Payment Date</div><div class="value">${fmtDate(p.date)}</div></div>
+        <div class="detail-item"><div class="label">Method</div><div class="value">${esc(p.method || '·')}</div></div>
+        <div class="detail-item"><div class="label">Status</div><div class="value">${payStatusBadge(p.status)}</div></div>
+        <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(p.notes || '·')}</div></div>
+      </div>
+
+      ${
+        cus
+          ? `<div class="detail-section-title">Customer</div>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Name</div><div class="value">${esc(cus.fullName)}</div></div>
+        <div class="detail-item"><div class="label">Mobile</div><div class="value">${esc(cus.mobile || '·')}</div></div>
+      </div>`
+          : ''
+      }`;
+
+    openModal({
+      title: 'Payment Details',
+      subtitle: p.id,
+      size: 'lg',
+      body,
+      footer: `
+        <button class="btn btn-ghost" data-act="close">Close</button>
+        <button class="btn btn-primary" data-act="edit">Edit Payment</button>`,
+      onOpen: (wrap, close) => {
+        wrap.querySelector('[data-act="close"]').addEventListener('click', close);
+        wrap.querySelector('[data-act="edit"]').addEventListener('click', () => {
+          close();
+          openPaymentForm(id);
+        });
+      },
+    });
+  }
+
+  async function deletePayment(id) {
+    const p = db.payments.find((x) => x.id === id);
+    if (!p) return;
+    const ok = await confirmDialog({
+      title: 'Delete Payment',
+      message: `Are you sure you want to delete payment <strong>${esc(p.id)}</strong> of ${fmtMoney(p.amount)}? This action cannot be undone.`,
+    });
+    if (!ok) return;
+    db.payments = db.payments.filter((x) => x.id !== id);
+    save();
+    renderAll();
+    toast('Payment deleted');
+  }
+
+  /* ================= EXPENSES ================= */
+  let expenseSearch = '';
+  let expenseFilterCat = 'all';
+
+  function renderExpenses() {
+    const today = todayISO();
+    const thisMonth = monthISO();
+    const thisYear = String(yearNum());
+    const sum = (arr) => arr.reduce((t, e) => t + num(e.amount), 0);
+
+    const icons = {
+      sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
+      cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      year: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
+      list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+      down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
+    };
+
+    const stats = [
+      { label: "Today's Expenses", value: fmtMoney(sum(db.expenses.filter((e) => e.date === today))), sub: `${db.expenses.filter((e) => e.date === today).length} entries`, icon: 'sun', accent: 'var(--red)', bg: 'var(--red-50)' },
+      { label: 'This Month', value: fmtMoney(sum(db.expenses.filter((e) => (e.date || '').slice(0, 7) === thisMonth))), sub: fmtMonth(thisMonth), icon: 'cal', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+      { label: 'This Year', value: fmtMoney(sum(db.expenses.filter((e) => (e.date || '').slice(0, 4) === thisYear))), sub: `${yearNum()}`, icon: 'year', accent: 'var(--brand)', bg: 'var(--brand-50)' },
+      { label: 'Total Entries', value: db.expenses.length, sub: 'All recorded expenses', icon: 'list', accent: 'var(--violet)', bg: 'var(--violet-50)' },
+      { label: 'Avg / Entry', value: fmtMoney(db.expenses.length ? sum(db.expenses) / db.expenses.length : 0), sub: 'Per expense record', icon: 'down', accent: 'var(--sky)', bg: 'var(--sky-50)' },
+    ];
+    $('#expenseStats').innerHTML = stats
+      .map(
+        (s) => `
+      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-label">${esc(s.label)}</div>
+        <div class="stat-sub">${esc(s.sub)}</div>
+      </div>`
+      )
+      .join('');
+
+    const q = expenseSearch.toLowerCase();
+    let list = [...db.expenses].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    if (expenseFilterCat !== 'all') list = list.filter((e) => e.category === expenseFilterCat);
+    if (q) {
+      list = list.filter((e) => e.id.toLowerCase().includes(q) || (e.title || '').toLowerCase().includes(q) || (e.category || '').toLowerCase().includes(q) || (e.notes || '').toLowerCase().includes(q));
+    }
+
+    const tbody = $('#expenseTable tbody');
+    const empty = $('#expenseEmpty');
+    const tableWrap = $('#expenseTable').closest('.table-wrap');
+
+    if (!db.expenses.length) {
+      tableWrap.style.display = 'none';
+      empty.style.display = 'block';
+      empty.querySelector('.empty-title').textContent = 'No expenses yet';
+      empty.querySelector('.empty-text').textContent = 'Track business expenses like rent, supplies and bills.';
+      return;
+    }
+    tableWrap.style.display = '';
+    empty.style.display = list.length ? 'none' : 'block';
+    if (!list.length) {
+      empty.querySelector('.empty-title').textContent = 'No matching expenses';
+      empty.querySelector('.empty-text').textContent = 'Try a different filter or search.';
+      tbody.innerHTML = '';
+      return;
+    }
+
+    const catBadge = (cat) => {
+      const map = { Rent: 'badge-brand', Utilities: 'badge-sky', Supplies: 'badge-violet', Salary: 'badge-green', Marketing: 'badge-amber' };
+      return `<span class="badge ${map[cat] || 'badge-gray'}">${esc(cat || 'Other')}</span>`;
+    };
+
+    tbody.innerHTML = list
+      .map(
+        (e) => `
+      <tr data-id="${esc(e.id)}">
+        <td data-label="Expense ID"><strong style="color:var(--brand)">${esc(e.id)}</strong></td>
+        <td data-label="Title">${esc(e.title || '·')}</td>
+        <td data-label="Category">${catBadge(e.category)}</td>
+        <td data-label="Amount"><strong class="amount-red">${fmtMoney(e.amount)}</strong></td>
+        <td data-label="Method">${methodBadge(e.method)}</td>
+        <td data-label="Date">${fmtDate(e.date)}</td>
+        <td class="col-actions">
+          <div class="row-actions">
+            <button class="icon-action" data-act="edit" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-action danger" data-act="delete" title="Delete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>`
+      )
+      .join('');
+
+    $$('#expenseTable [data-act]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.closest('tr').dataset.id;
+        if (btn.dataset.act === 'edit') openExpenseForm(id);
+        else if (btn.dataset.act === 'delete') deleteExpense(id);
+      });
+    });
+  }
+
+  function openExpenseForm(id = null) {
+    const exp = id ? db.expenses.find((e) => e.id === id) : null;
+    const categories = ['Rent', 'Utilities', 'Supplies', 'Inventory', 'Equipment', 'Marketing', 'Salary', 'Transport', 'Housekeeping', 'Other'];
+
+    const body = `
+      <div class="modal-hero">
+        <div class="modal-hero-icon" style="background:linear-gradient(135deg,#f5644e,#d93737 60%,#a82323);box-shadow:0 8px 18px rgba(217,55,55,0.35)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="modal-hero-info">
+          <h3>${exp ? 'Edit Expense' : 'Add Expense'}</h3>
+          <p>${exp ? `Update ${esc(exp.id)}` : 'Record a business expense entry'}</p>
+        </div>
+        <span class="modal-hero-id">${exp ? esc(exp.id) : peekId('exp')}</span>
+      </div>
+
+      <form id="expForm" class="form-grid" autocomplete="off">
+        <div class="field span-2">
+          <label>Expense Title <span class="req">*</span></label>
+          <input name="title" required placeholder="e.g. Monthly shop rent" value="${esc(exp?.title || '')}" />
+        </div>
+
+        <div class="field">
+          <label>Category <span class="req">*</span></label>
+          <select name="category" required>
+            ${categories.map((c) => `<option ${(exp?.category || 'Other') === c ? 'selected' : ''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Amount (₹) <span class="req">*</span></label>
+          <input type="number" name="amount" min="0" step="0.01" required placeholder="e.g. 25000" value="${esc(exp?.amount || '')}" />
+        </div>
+
+        <div class="field">
+          <label>Expense Date <span class="req">*</span></label>
+          <input type="date" name="date" required value="${esc(exp?.date || todayISO())}" />
+        </div>
+        <div class="field">
+          <label>Paid Via <span class="req">*</span></label>
+          <select name="method" required>
+            ${['Cash', 'UPI', 'Card', 'Bank Transfer'].map((m) => `<option ${(exp?.method || 'Cash') === m ? 'selected' : ''}>${m}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="field span-2">
+          <label>Notes</label>
+          <textarea name="notes" placeholder="Any additional details...">${esc(exp?.notes || '')}</textarea>
+        </div>
+      </form>`;
+
+    openModal({
+      title: exp ? 'Edit Expense' : 'Add Expense',
+      subtitle: exp ? `Updating ${exp.id}` : 'New expense entry',
+      size: 'lg',
+      body,
+      footer: `
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="save">${exp ? 'Save Changes' : 'Add Expense'}</button>`,
+      onOpen: (wrap, close) => {
+        const form = $('#expForm', wrap);
+        wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
+        wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
+          if (!form.reportValidity()) return;
+          const data = Object.fromEntries(new FormData(form).entries());
+          if (exp) {
+            Object.assign(exp, data);
+            toast('Expense updated successfully');
+          } else {
+            data.id = nextId('exp');
+            data.createdAt = new Date().toISOString();
+            db.expenses.push(data);
+            toast(`Expense added · ${data.id}`);
+          }
+          save();
+          close();
+          renderAll();
+        });
+      },
+    });
+  }
+
+  async function deleteExpense(id) {
+    const e = db.expenses.find((x) => x.id === id);
+    if (!e) return;
+    const ok = await confirmDialog({
+      title: 'Delete Expense',
+      message: `Are you sure you want to delete <strong>${esc(e.title || e.id)}</strong> (${fmtMoney(e.amount)})? This action cannot be undone.`,
+    });
+    if (!ok) return;
+    db.expenses = db.expenses.filter((x) => x.id !== id);
+    save();
+    renderAll();
+    toast('Expense deleted');
+  }
+
+  /* ================= MAINTENANCE ================= */
+  let maintenanceSearch = '';
+  let maintenanceFilterStatus = 'all';
+
+  function renderMaintenance() {
+    const icons = {
+      all: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+      pending: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      progress: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>',
+      done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+      cost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>',
+    };
+
+    const stats = [
+      { label: 'Total Tasks', value: db.maintenance.length, sub: 'All maintenance records', icon: 'all', accent: 'var(--brand)', bg: 'var(--brand-50)' },
+      { label: 'Pending', value: db.maintenance.filter((m) => m.status === 'Pending').length, sub: 'Awaiting action', icon: 'pending', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+      { label: 'In Progress', value: db.maintenance.filter((m) => m.status === 'In Progress').length, sub: 'Currently being worked on', icon: 'progress', accent: 'var(--sky)', bg: 'var(--sky-50)' },
+      { label: 'Completed', value: db.maintenance.filter((m) => m.status === 'Completed').length, sub: 'Tasks finished', icon: 'done', accent: 'var(--green)', bg: 'var(--green-50)' },
+      { label: 'Total Cost', value: fmtMoney(db.maintenance.reduce((t, m) => t + num(m.cost), 0)), sub: 'Across all tasks', icon: 'cost', accent: 'var(--violet)', bg: 'var(--violet-50)' },
+    ];
+    $('#maintenanceStats').innerHTML = stats
+      .map(
+        (s) => `
+      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-label">${esc(s.label)}</div>
+        <div class="stat-sub">${esc(s.sub)}</div>
+      </div>`
+      )
+      .join('');
+
+    const q = maintenanceSearch.toLowerCase();
+    let list = [...db.maintenance].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    if (maintenanceFilterStatus !== 'all') list = list.filter((m) => m.status === maintenanceFilterStatus);
+    if (q) {
+      list = list.filter(
+        (m) => m.id.toLowerCase().includes(q) || (m.title || '').toLowerCase().includes(q) || (m.asset || '').toLowerCase().includes(q) || (m.category || '').toLowerCase().includes(q)
+      );
+    }
+
+    const tbody = $('#maintenanceTable tbody');
+    const empty = $('#maintenanceEmpty');
+    const tableWrap = $('#maintenanceTable').closest('.table-wrap');
+
+    if (!db.maintenance.length) {
+      tableWrap.style.display = 'none';
+      empty.style.display = 'block';
+      empty.querySelector('.empty-title').textContent = 'No maintenance tasks';
+      empty.querySelector('.empty-text').textContent = 'Track equipment servicing, repairs and cleaning schedules.';
+      return;
+    }
+    tableWrap.style.display = '';
+    empty.style.display = list.length ? 'none' : 'block';
+    if (!list.length) {
+      empty.querySelector('.empty-title').textContent = 'No matching tasks';
+      empty.querySelector('.empty-text').textContent = 'Try a different filter or search.';
+      tbody.innerHTML = '';
+      return;
+    }
+
+    const prioBadge = (p) => {
+      const map = { Low: 'badge-gray', Medium: 'badge-sky', High: 'badge-amber', Urgent: 'badge-red' };
+      return `<span class="badge ${map[p] || 'badge-gray'}">${esc(p || '·')}</span>`;
+    };
+
+    tbody.innerHTML = list
+      .map((m) => {
+        const emp = db.employees.find((e) => e.id === m.employeeId);
+        return `
+      <tr data-id="${esc(m.id)}">
+        <td data-label="Task ID"><strong style="color:var(--brand)">${esc(m.id)}</strong></td>
+        <td data-label="Task">${esc(m.title || '·')}</td>
+        <td data-label="Asset / Area">${esc(m.asset || '·')}</td>
+        <td data-label="Priority">${prioBadge(m.priority)}</td>
+        <td data-label="Status">${maintenanceStatusBadge(m.status)}</td>
+        <td data-label="Scheduled">${fmtDate(m.scheduledDate)}</td>
+        <td data-label="Cost">${m.cost ? fmtMoney(m.cost) : '·'}</td>
+        <td data-label="Assigned To">${esc(emp?.fullName || '·')}</td>
+        <td class="col-actions">
+          <div class="row-actions">
+            <button class="icon-action" data-act="edit" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-action danger" data-act="delete" title="Delete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+      })
+      .join('');
+
+    $$('#maintenanceTable [data-act]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.closest('tr').dataset.id;
+        if (btn.dataset.act === 'edit') openMaintenanceForm(id);
+        else if (btn.dataset.act === 'delete') deleteMaintenance(id);
+      });
+    });
+  }
+
+  function maintenanceStatusBadge(status) {
+    const map = { Pending: 'badge-amber', 'In Progress': 'badge-sky', Completed: 'badge-green' };
+    return `<span class="badge ${map[status] || 'badge-gray'}">${esc(status || '·')}</span>`;
+  }
+
+  function openMaintenanceForm(id = null) {
+    const m = id ? db.maintenance.find((x) => x.id === id) : null;
+    const categories = ['Equipment', 'Facility', 'Cleaning', 'Repair', 'Safety', 'Other'];
+    const priorities = ['Low', 'Medium', 'High', 'Urgent'];
+
+    const empOptions = db.employees
+      .map((e) => `<option value="${esc(e.id)}" ${m?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.id)}</option>`)
+      .join('');
+
+    const body = `
+      <div class="modal-hero">
+        <div class="modal-hero-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed 60%,#5b21b6);box-shadow:0 8px 18px rgba(124,58,237,0.35)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        </div>
+        <div class="modal-hero-info">
+          <h3>${m ? 'Edit Task' : 'New Maintenance Task'}</h3>
+          <p>${m ? `Update ${esc(m.id)}` : 'Schedule a repair, cleaning or servicing task'}</p>
+        </div>
+        <span class="modal-hero-id">${m ? esc(m.id) : peekId('mnt')}</span>
+      </div>
+
+      <form id="mntForm" class="form-grid" autocomplete="off">
+        <div class="field span-2">
+          <label>Task Title <span class="req">*</span></label>
+          <input name="title" required placeholder="e.g. Service hair dryer machine" value="${esc(m?.title || '')}" />
+        </div>
+
+        <div class="field">
+          <label>Asset / Area <span class="req">*</span></label>
+          <input name="asset" required placeholder="e.g. Hair Dryer #2 / Wash Station" value="${esc(m?.asset || '')}" />
+        </div>
+        <div class="field">
+          <label>Category <span class="req">*</span></label>
+          <select name="category" required>
+            ${categories.map((c) => `<option ${(m?.category || 'Equipment') === c ? 'selected' : ''}>${c}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Priority <span class="req">*</span></label>
+          <select name="priority" required>
+            ${priorities.map((p) => `<option ${(m?.priority || 'Medium') === p ? 'selected' : ''}>${p}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Status <span class="req">*</span></label>
+          <select name="status" required>
+            ${['Pending', 'In Progress', 'Completed'].map((s) => `<option ${(m?.status || 'Pending') === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Scheduled Date <span class="req">*</span></label>
+          <input type="date" name="scheduledDate" required value="${esc(m?.scheduledDate || todayISO())}" />
+        </div>
+        <div class="field">
+          <label>Cost (₹)</label>
+          <input type="number" name="cost" min="0" step="0.01" placeholder="e.g. 800" value="${esc(m?.cost || '')}" />
+        </div>
+
+        <div class="field span-2">
+          <label>Assign To (Employee)</label>
+          <select name="employeeId">
+            <option value="">Unassigned</option>
+            ${empOptions}
+          </select>
+        </div>
+
+        <div class="field span-2">
+          <label>Notes</label>
+          <textarea name="notes" placeholder="Additional instructions...">${esc(m?.notes || '')}</textarea>
+        </div>
+      </form>`;
+
+    openModal({
+      title: m ? 'Edit Task' : 'New Maintenance Task',
+      subtitle: m ? `Updating ${m.id}` : 'Maintenance scheduling',
+      size: 'lg',
+      body,
+      footer: `
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="save">${m ? 'Save Changes' : 'Create Task'}</button>`,
+      onOpen: (wrap, close) => {
+        const form = $('#mntForm', wrap);
+        wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
+        wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
+          if (!form.reportValidity()) return;
+          const data = Object.fromEntries(new FormData(form).entries());
+          if (m) {
+            Object.assign(m, data);
+            toast('Task updated successfully');
+          } else {
+            data.id = nextId('mnt');
+            data.createdAt = new Date().toISOString();
+            db.maintenance.push(data);
+            toast(`Task created · ${data.id}`);
+          }
+          save();
+          close();
+          renderAll();
+        });
+      },
+    });
+  }
+
+  async function deleteMaintenance(id) {
+    const m = db.maintenance.find((x) => x.id === id);
+    if (!m) return;
+    const ok = await confirmDialog({
+      title: 'Delete Task',
+      message: `Are you sure you want to delete <strong>${esc(m.title || m.id)}</strong>? This action cannot be undone.`,
+    });
+    if (!ok) return;
+    db.maintenance = db.maintenance.filter((x) => x.id !== id);
+    save();
+    renderAll();
+    toast('Task deleted');
+  }
+
+  /* ================= ATTENDANCE ================= */
+  let attendanceSearch = '';
+  let attendanceDate = todayISO();
+
+  function attendanceFor(employeeId, date) {
+    return db.attendance.find((a) => a.employeeId === employeeId && a.date === date);
+  }
+
+  function setAttendance(employeeId, status) {
+    let rec = attendanceFor(employeeId, attendanceDate);
+    if (rec) {
+      rec.status = status;
+    } else {
+      rec = {
+        id: nextId('att'),
+        employeeId,
+        date: attendanceDate,
+        status,
+        checkIn: status === 'Absent' ? '' : '09:00',
+        notes: '',
+        createdAt: new Date().toISOString(),
+      };
+      db.attendance.push(rec);
+    }
+    save();
+    renderAttendance();
+  }
+
+  function renderAttendance() {
+    const date = attendanceDate;
+    const dayRecs = db.attendance.filter((a) => a.date === date);
+    const icons = {
+      present: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+      late: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      absent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+      half: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20z"/></svg>',
+      total: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    };
+
+    const stats = [
+      { label: 'Present', value: dayRecs.filter((a) => a.status === 'Present').length, sub: fmtDate(date), icon: 'present', accent: 'var(--green)', bg: 'var(--green-50)' },
+      { label: 'Late', value: dayRecs.filter((a) => a.status === 'Late').length, sub: fmtDate(date), icon: 'late', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+      { label: 'Absent', value: dayRecs.filter((a) => a.status === 'Absent').length, sub: fmtDate(date), icon: 'absent', accent: 'var(--red)', bg: 'var(--red-50)' },
+      { label: 'Half Day', value: dayRecs.filter((a) => a.status === 'Half Day').length, sub: fmtDate(date), icon: 'half', accent: 'var(--sky)', bg: 'var(--sky-50)' },
+      { label: 'Not Marked', value: Math.max(db.employees.length - dayRecs.length, 0), sub: `${db.employees.length} employees`, icon: 'total', accent: 'var(--text-2)', bg: '#f0f1f4' },
+    ];
+    $('#attendanceStats').innerHTML = stats
+      .map(
+        (s) => `
+      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-label">${esc(s.label)}</div>
+        <div class="stat-sub">${esc(s.sub)}</div>
+      </div>`
+      )
+      .join('');
+
+    const q = attendanceSearch.toLowerCase();
+    const list = db.employees.filter((e) => !q || e.fullName.toLowerCase().includes(q) || (e.staffRole || '').toLowerCase().includes(q) || e.id.toLowerCase().includes(q));
+
+    const wrap = $('#attendanceList');
+    const empty = $('#attendanceEmpty');
+
+    if (!db.employees.length) {
+      wrap.innerHTML = '';
+      empty.style.display = 'block';
+      empty.querySelector('.empty-title').textContent = 'No employees to mark';
+      empty.querySelector('.empty-text').textContent = 'Add employees first, then mark their daily attendance here.';
+      return;
+    }
+    empty.style.display = list.length ? 'none' : 'block';
+    if (!list.length) {
+      wrap.innerHTML = '';
+      empty.querySelector('.empty-title').textContent = 'No matching employees';
+      empty.querySelector('.empty-text').textContent = 'Try a different search term.';
+      return;
+    }
+
+    const segBtn = (rec, status, cls) => {
+      const on = rec?.status === status ? `on-${cls}` : '';
+      return `<button class="${on}" data-status="${status}">${status}</button>`;
+    };
+
+    wrap.innerHTML = list
+      .map((e) => {
+        const rec = attendanceFor(e.id, date);
+        return `
+      <div class="att-row" data-id="${esc(e.id)}">
+        <div class="att-row-top">
+          ${avatarHTML(e)}
+          <div class="info">
+            <div class="t">${esc(e.fullName)}</div>
+            <div class="s">${esc(e.staffRole || '')} · ${esc(e.id)}${rec ? ' · ' + esc(rec.status) : ' · Not marked'}</div>
+          </div>
+          ${rec ? `<span class="badge ${rec.status === 'Present' ? 'badge-green' : rec.status === 'Late' ? 'badge-amber' : rec.status === 'Absent' ? 'badge-red' : 'badge-sky'}">${esc(rec.status)}</span>` : '<span class="badge badge-gray">Not marked</span>'}
+        </div>
+        <div class="att-controls">
+          <div class="seg-group">
+            ${segBtn(rec, 'Present', 'present')}
+            ${segBtn(rec, 'Late', 'late')}
+            ${segBtn(rec, 'Absent', 'absent')}
+            ${segBtn(rec, 'Half Day', 'half')}
+          </div>
+          <div class="att-checkin">
+            <label>Check-in</label>
+            <input type="time" value="${esc(rec?.checkIn || '')}" data-role="checkin" ${rec?.status === 'Absent' ? 'disabled' : ''} />
+            ${rec ? `<button class="icon-action danger" data-act="remove" title="Remove record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : ''}
+          </div>
+        </div>
+      </div>`;
+      })
+      .join('');
+
+    $$('#attendanceList .att-row').forEach((row) => {
+      const empId = row.dataset.id;
+      $$('.seg-group button', row).forEach((btn) => {
+        btn.addEventListener('click', () => setAttendance(empId, btn.dataset.status));
+      });
+      const timeInput = row.querySelector('[data-role="checkin"]');
+      if (timeInput) {
+        timeInput.addEventListener('change', () => {
+          const rec = attendanceFor(empId, date);
+          if (!rec) return;
+          rec.checkIn = timeInput.value;
+          save();
+        });
+      }
+      const removeBtn = row.querySelector('[data-act="remove"]');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+          db.attendance = db.attendance.filter((a) => !(a.employeeId === empId && a.date === date));
+          save();
+          renderAttendance();
+          toast('Attendance record removed');
+        });
+      }
+    });
+  }
+
+  function markAllPresent() {
+    if (!db.employees.length) {
+      toast('No employees to mark.', 'error');
+      return;
+    }
+    let count = 0;
+    db.employees.forEach((e) => {
+      const rec = attendanceFor(e.id, attendanceDate);
+      if (rec) {
+        if (rec.status === 'Absent' || rec.status === 'Late' || rec.status === 'Half Day') {
+          rec.status = 'Present';
+          count++;
+        }
+      } else {
+        db.attendance.push({
+          id: nextId('att'),
+          employeeId: e.id,
+          date: attendanceDate,
+          status: 'Present',
+          checkIn: '09:00',
+          notes: '',
+          createdAt: new Date().toISOString(),
+        });
+        count++;
+      }
+    });
+    save();
+    renderAttendance();
+    toast(count ? `${count} employee${count === 1 ? '' : 's'} marked present` : 'Everyone already marked present');
+  }
+
+  /* ================= LEAVES ================= */
+  let leaveSearch = '';
+  let leaveFilterStatus = 'all';
+
+  function leaveStatusBadge(status) {
+    const map = { Pending: 'badge-amber', Approved: 'badge-green', Rejected: 'badge-red' };
+    return `<span class="badge ${map[status] || 'badge-gray'}">${esc(status || '·')}</span>`;
+  }
+
+  function renderLeaves() {
+    const icons = {
+      total: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+      pending: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      approved: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+      rejected: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+      days: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    };
+
+    const approved = db.leaves.filter((l) => l.status === 'Approved');
+    const stats = [
+      { label: 'Total Requests', value: db.leaves.length, sub: 'All time', icon: 'total', accent: 'var(--brand)', bg: 'var(--brand-50)' },
+      { label: 'Pending', value: db.leaves.filter((l) => l.status === 'Pending').length, sub: 'Awaiting review', icon: 'pending', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+      { label: 'Approved', value: approved.length, sub: 'Leaves granted', icon: 'approved', accent: 'var(--green)', bg: 'var(--green-50)' },
+      { label: 'Rejected', value: db.leaves.filter((l) => l.status === 'Rejected').length, sub: 'Leaves declined', icon: 'rejected', accent: 'var(--red)', bg: 'var(--red-50)' },
+      { label: 'Approved Days', value: approved.reduce((t, l) => t + daysBetween(l.fromDate, l.toDate), 0), sub: 'Total leave days', icon: 'days', accent: 'var(--violet)', bg: 'var(--violet-50)' },
+    ];
+    $('#leaveStats').innerHTML = stats
+      .map(
+        (s) => `
+      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-label">${esc(s.label)}</div>
+        <div class="stat-sub">${esc(s.sub)}</div>
+      </div>`
+      )
+      .join('');
+
+    const q = leaveSearch.toLowerCase();
+    let list = [...db.leaves].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    if (leaveFilterStatus !== 'all') list = list.filter((l) => l.status === leaveFilterStatus);
+    if (q) {
+      list = list.filter((l) => {
+        const emp = db.employees.find((e) => e.id === l.employeeId);
+        return l.id.toLowerCase().includes(q) || (emp?.fullName || '').toLowerCase().includes(q) || (l.type || '').toLowerCase().includes(q) || (l.reason || '').toLowerCase().includes(q);
+      });
+    }
+
+    const tbody = $('#leaveTable tbody');
+    const empty = $('#leaveEmpty');
+    const tableWrap = $('#leaveTable').closest('.table-wrap');
+
+    if (!db.leaves.length) {
+      tableWrap.style.display = 'none';
+      empty.style.display = 'block';
+      empty.querySelector('.empty-title').textContent = 'No leave requests';
+      empty.querySelector('.empty-text').textContent = 'Employee leave requests will appear here for approval.';
+      return;
+    }
+    tableWrap.style.display = '';
+    empty.style.display = list.length ? 'none' : 'block';
+    if (!list.length) {
+      empty.querySelector('.empty-title').textContent = 'No matching requests';
+      empty.querySelector('.empty-text').textContent = 'Try a different filter or search.';
+      tbody.innerHTML = '';
+      return;
+    }
+
+    tbody.innerHTML = list
+      .map((l) => {
+        const emp = db.employees.find((e) => e.id === l.employeeId);
+        return `
+      <tr data-id="${esc(l.id)}">
+        <td data-label="Request ID"><strong style="color:var(--brand)">${esc(l.id)}</strong></td>
+        <td data-label="Employee">
+          <div class="person-cell">
+            ${avatarHTML(emp || { fullName: l.employeeId })}
+            <div>
+              <div class="person-name">${esc(emp?.fullName || l.employeeId)}</div>
+              <div class="person-meta">${esc(emp?.staffRole || '')}</div>
+            </div>
+          </div>
+        </td>
+        <td data-label="Leave Type"><span class="badge badge-violet">${esc(l.type || '·')}</span></td>
+        <td data-label="From">${fmtDate(l.fromDate)}</td>
+        <td data-label="To">${fmtDate(l.toDate)}</td>
+        <td data-label="Days"><strong>${daysBetween(l.fromDate, l.toDate)}</strong></td>
+        <td data-label="Status">${leaveStatusBadge(l.status)}</td>
+        <td class="col-actions">
+          <div class="row-actions">
+            ${l.status === 'Pending' ? `<button class="icon-action" data-act="approve" title="Approve" style="color:var(--green);border-color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></button>
+            <button class="icon-action" data-act="reject" title="Reject" style="color:var(--red);border-color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>` : ''}
+            <button class="icon-action" data-act="edit" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-action danger" data-act="delete" title="Delete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+      })
+      .join('');
+
+    $$('#leaveTable [data-act]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.closest('tr').dataset.id;
+        const act = btn.dataset.act;
+        if (act === 'edit') openLeaveForm(id);
+        else if (act === 'delete') deleteLeave(id);
+        else if (act === 'approve') updateLeaveStatus(id, 'Approved');
+        else if (act === 'reject') updateLeaveStatus(id, 'Rejected');
+      });
+    });
+  }
+
+  function updateLeaveStatus(id, status) {
+    const l = db.leaves.find((x) => x.id === id);
+    if (!l) return;
+    l.status = status;
+    save();
+    renderAll();
+    toast(`Leave ${status.toLowerCase()}`);
+  }
+
+  function openLeaveForm(id = null) {
+    const l = id ? db.leaves.find((x) => x.id === id) : null;
+    if (!db.employees.length) {
+      toast('Please add at least one employee first.', 'error');
+      return;
+    }
+
+    const empOptions = db.employees
+      .map((e) => `<option value="${esc(e.id)}" ${l?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.id)}</option>`)
+      .join('');
+    const types = ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Unpaid Leave', 'Maternity Leave', 'Paternity Leave', 'Other'];
+
+    const body = `
+      <div class="modal-hero">
+        <div class="modal-hero-icon" style="background:linear-gradient(135deg,#f59e0b,#c77700 60%,#92400e);box-shadow:0 8px 18px rgba(199,119,0,0.35)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/><path d="M9 16h6"/><path d="M12 13v6"/></svg>
+        </div>
+        <div class="modal-hero-info">
+          <h3>${l ? 'Edit Leave Request' : 'New Leave Request'}</h3>
+          <p>${l ? `Update ${esc(l.id)}` : 'Record a leave request for an employee'}</p>
+        </div>
+        <span class="modal-hero-id">${l ? esc(l.id) : peekId('lv')}</span>
+      </div>
+
+      <form id="lvForm" class="form-grid" autocomplete="off">
+        <div class="field span-2">
+          <label>Employee <span class="req">*</span></label>
+          <select name="employeeId" required>
+            <option value="">Select employee</option>
+            ${empOptions}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Leave Type <span class="req">*</span></label>
+          <select name="type" required>
+            ${types.map((t) => `<option ${(l?.type || 'Casual Leave') === t ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Status <span class="req">*</span></label>
+          <select name="status" required>
+            ${['Pending', 'Approved', 'Rejected'].map((s) => `<option ${(l?.status || 'Pending') === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>From Date <span class="req">*</span></label>
+          <input type="date" name="fromDate" required value="${esc(l?.fromDate || todayISO())}" />
+        </div>
+        <div class="field">
+          <label>To Date <span class="req">*</span></label>
+          <input type="date" name="toDate" required value="${esc(l?.toDate || todayISO())}" />
+        </div>
+
+        <div class="field span-2">
+          <label>Reason</label>
+          <textarea name="reason" placeholder="Reason for leave...">${esc(l?.reason || '')}</textarea>
+        </div>
+      </form>`;
+
+    openModal({
+      title: l ? 'Edit Leave Request' : 'New Leave Request',
+      subtitle: l ? `Updating ${l.id}` : 'Employee leave management',
+      size: 'lg',
+      body,
+      footer: `
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="save">${l ? 'Save Changes' : 'Submit Request'}</button>`,
+      onOpen: (wrap, close) => {
+        const form = $('#lvForm', wrap);
+        wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
+        wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
+          if (!form.reportValidity()) return;
+          const data = Object.fromEntries(new FormData(form).entries());
+          if (data.toDate < data.fromDate) {
+            toast('To date must be on or after from date.', 'error');
+            return;
+          }
+          if (l) {
+            Object.assign(l, data);
+            toast('Leave request updated');
+          } else {
+            data.id = nextId('lv');
+            data.createdAt = new Date().toISOString();
+            db.leaves.push(data);
+            toast(`Leave request created · ${data.id}`);
+          }
+          save();
+          close();
+          renderAll();
+        });
+      },
+    });
+  }
+
+  async function deleteLeave(id) {
+    const l = db.leaves.find((x) => x.id === id);
+    if (!l) return;
+    const emp = db.employees.find((e) => e.id === l.employeeId);
+    const ok = await confirmDialog({
+      title: 'Delete Leave Request',
+      message: `Are you sure you want to delete the leave request <strong>${esc(l.id)}</strong> of <strong>${esc(emp?.fullName || l.employeeId)}</strong>? This action cannot be undone.`,
+    });
+    if (!ok) return;
+    db.leaves = db.leaves.filter((x) => x.id !== id);
+    save();
+    renderAll();
+    toast('Leave request deleted');
+  }
+
+  /* ================= SALARY ================= */
+  let salarySearch = '';
+  let salaryFilterStatus = 'all';
+
+  function salaryStatusBadge(status) {
+    const map = { Paid: 'badge-green', Pending: 'badge-amber' };
+    return `<span class="badge ${map[status] || 'badge-gray'}">${esc(status || '·')}</span>`;
+  }
+
+  function renderSalary() {
+    const icons = {
+      paid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>',
+      month: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      pending: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      total: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+      bonus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
+    };
+
+    const thisMonth = monthISO();
+    const paid = db.salaries.filter((s) => s.status === 'Paid');
+    const sum = (arr) => arr.reduce((t, s) => t + num(s.net), 0);
+
+    const stats = [
+      { label: 'Total Paid', value: fmtMoney(sum(paid)), sub: `${paid.length} salary records`, icon: 'paid', accent: 'var(--green)', bg: 'var(--green-50)' },
+      { label: 'This Month Paid', value: fmtMoney(sum(paid.filter((s) => s.month === thisMonth))), sub: fmtMonth(thisMonth), icon: 'month', accent: 'var(--brand)', bg: 'var(--brand-50)' },
+      { label: 'Pending Amount', value: fmtMoney(sum(db.salaries.filter((s) => s.status === 'Pending'))), sub: `${db.salaries.filter((s) => s.status === 'Pending').length} unpaid records`, icon: 'pending', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+      { label: 'Total Records', value: db.salaries.length, sub: 'All salary entries', icon: 'total', accent: 'var(--violet)', bg: 'var(--violet-50)' },
+      { label: 'Total Bonuses', value: fmtMoney(db.salaries.reduce((t, s) => t + num(s.bonus), 0)), sub: 'Bonuses paid out', icon: 'bonus', accent: 'var(--sky)', bg: 'var(--sky-50)' },
+    ];
+    $('#salaryStats').innerHTML = stats
+      .map(
+        (s) => `
+      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-label">${esc(s.label)}</div>
+        <div class="stat-sub">${esc(s.sub)}</div>
+      </div>`
+      )
+      .join('');
+
+    const q = salarySearch.toLowerCase();
+    let list = [...db.salaries].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    if (salaryFilterStatus !== 'all') list = list.filter((s) => s.status === salaryFilterStatus);
+    if (q) {
+      list = list.filter((s) => {
+        const emp = db.employees.find((e) => e.id === s.employeeId);
+        return s.id.toLowerCase().includes(q) || (emp?.fullName || '').toLowerCase().includes(q) || (s.month || '').toLowerCase().includes(q);
+      });
+    }
+
+    const tbody = $('#salaryTable tbody');
+    const empty = $('#salaryEmpty');
+    const tableWrap = $('#salaryTable').closest('.table-wrap');
+
+    if (!db.salaries.length) {
+      tableWrap.style.display = 'none';
+      empty.style.display = 'block';
+      empty.querySelector('.empty-title').textContent = 'No salary records';
+      empty.querySelector('.empty-text').textContent = 'Record monthly salary payments for your employees.';
+      return;
+    }
+    tableWrap.style.display = '';
+    empty.style.display = list.length ? 'none' : 'block';
+    if (!list.length) {
+      empty.querySelector('.empty-title').textContent = 'No matching records';
+      empty.querySelector('.empty-text').textContent = 'Try a different filter or search.';
+      tbody.innerHTML = '';
+      return;
+    }
+
+    tbody.innerHTML = list
+      .map((s) => {
+        const emp = db.employees.find((e) => e.id === s.employeeId);
+        return `
+      <tr data-id="${esc(s.id)}">
+        <td data-label="Record ID"><strong style="color:var(--brand)">${esc(s.id)}</strong></td>
+        <td data-label="Employee">
+          <div class="person-cell">
+            ${avatarHTML(emp || { fullName: s.employeeId })}
+            <div>
+              <div class="person-name">${esc(emp?.fullName || s.employeeId)}</div>
+              <div class="person-meta">${esc(emp?.staffRole || '')}</div>
+            </div>
+          </div>
+        </td>
+        <td data-label="Month">${esc(fmtMonth(s.month))}</td>
+        <td data-label="Basic">${fmtMoney(s.basic)}</td>
+        <td data-label="Bonus">${num(s.bonus) ? `<strong class="amount-green">+${fmtMoney(s.bonus)}</strong>` : '·'}</td>
+        <td data-label="Deductions">${num(s.deductions) ? `<strong class="amount-red">-${fmtMoney(s.deductions)}</strong>` : '·'}</td>
+        <td data-label="Net Salary"><strong>${fmtMoney(s.net)}</strong></td>
+        <td data-label="Status">${salaryStatusBadge(s.status)}</td>
+        <td class="col-actions">
+          <div class="row-actions">
+            ${s.status === 'Pending' ? `<button class="icon-action" data-act="paid" title="Mark as Paid" style="color:var(--green);border-color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></button>` : ''}
+            <button class="icon-action" data-act="edit" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-action danger" data-act="delete" title="Delete">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+      })
+      .join('');
+
+    $$('#salaryTable [data-act]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.closest('tr').dataset.id;
+        const act = btn.dataset.act;
+        if (act === 'edit') openSalaryForm(id);
+        else if (act === 'delete') deleteSalary(id);
+        else if (act === 'paid') markSalaryPaid(id);
+      });
+    });
+  }
+
+  function markSalaryPaid(id) {
+    const s = db.salaries.find((x) => x.id === id);
+    if (!s) return;
+    s.status = 'Paid';
+    s.paidDate = todayISO();
+    save();
+    renderAll();
+    toast('Salary marked as paid');
+  }
+
+  function openSalaryForm(id = null) {
+    const sal = id ? db.salaries.find((x) => x.id === id) : null;
+    if (!db.employees.length) {
+      toast('Please add at least one employee first.', 'error');
+      return;
+    }
+
+    const empOptions = db.employees
+      .map((e) => `<option value="${esc(e.id)}" ${sal?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.id)}</option>`)
+      .join('');
+    const methods = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
+
+    const net = num(sal?.basic) + num(sal?.bonus) - num(sal?.deductions);
+
+    const body = `
+      <div class="modal-hero">
+        <div class="modal-hero-icon" style="background:linear-gradient(135deg,#34d399,#12a150 60%,#0a6b35);box-shadow:0 8px 18px rgba(18,161,80,0.35)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>
+        </div>
+        <div class="modal-hero-info">
+          <h3>${sal ? 'Edit Salary Record' : 'Pay Salary'}</h3>
+          <p>${sal ? `Update ${esc(sal.id)}` : 'Record a monthly salary payment'}</p>
+        </div>
+        <span class="modal-hero-id">${sal ? esc(sal.id) : peekId('sal')}</span>
+      </div>
+
+      <form id="salForm" class="form-grid" autocomplete="off">
+        <div class="field span-2">
+          <label>Employee <span class="req">*</span></label>
+          <select name="employeeId" required>
+            <option value="">Select employee</option>
+            ${empOptions}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Salary Month <span class="req">*</span></label>
+          <input type="month" name="month" required value="${esc(sal?.month || monthISO())}" />
+        </div>
+        <div class="field">
+          <label>Status <span class="req">*</span></label>
+          <select name="status" required>
+            ${['Pending', 'Paid'].map((s) => `<option ${(sal?.status || 'Pending') === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Basic Salary (₹) <span class="req">*</span></label>
+          <input type="number" name="basic" min="0" step="0.01" required placeholder="e.g. 25000" value="${esc(sal?.basic || '')}" />
+        </div>
+        <div class="field">
+          <label>Bonus (₹)</label>
+          <input type="number" name="bonus" min="0" step="0.01" placeholder="e.g. 2000" value="${esc(sal?.bonus || '')}" />
+        </div>
+
+        <div class="field">
+          <label>Deductions (₹)</label>
+          <input type="number" name="deductions" min="0" step="0.01" placeholder="e.g. 500" value="${esc(sal?.deductions || '')}" />
+        </div>
+        <div class="field">
+          <label>Payment Date</label>
+          <input type="date" name="paidDate" value="${esc(sal?.paidDate || '')}" />
+        </div>
+
+        <div class="field span-2">
+          <label>Payment Method <span class="req">*</span></label>
+          <select name="method" required>
+            ${methods.map((m) => `<option ${(sal?.method || 'Cash') === m ? 'selected' : ''}>${m}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="field span-2">
+          <label>Notes</label>
+          <textarea name="notes" placeholder="Any additional notes...">${esc(sal?.notes || '')}</textarea>
+        </div>
+      </form>`;
+
+    openModal({
+      title: sal ? 'Edit Salary' : 'Pay Salary',
+      subtitle: sal ? `Updating ${sal.id}` : 'New salary record',
+      size: 'lg',
+      body,
+      footer: `
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="save">${sal ? 'Save Changes' : 'Save Salary'}</button>`,
+      onOpen: (wrap, close) => {
+        const form = $('#salForm', wrap);
+        wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
+        wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
+          if (!form.reportValidity()) return;
+          const data = Object.fromEntries(new FormData(form).entries());
+          data.net = num(data.basic) + num(data.bonus) - num(data.deductions);
+          if (data.status === 'Paid' && !data.paidDate) data.paidDate = todayISO();
+
+          if (sal) {
+            Object.assign(sal, data);
+            toast('Salary record updated');
+          } else {
+            data.id = nextId('sal');
+            data.createdAt = new Date().toISOString();
+            db.salaries.push(data);
+            toast(`Salary recorded · ${data.id}`);
+          }
+          save();
+          close();
+          renderAll();
+        });
+      },
+    });
+  }
+
+  async function deleteSalary(id) {
+    const s = db.salaries.find((x) => x.id === id);
+    if (!s) return;
+    const emp = db.employees.find((e) => e.id === s.employeeId);
+    const ok = await confirmDialog({
+      title: 'Delete Salary Record',
+      message: `Are you sure you want to delete the salary record <strong>${esc(s.id)}</strong> of <strong>${esc(emp?.fullName || s.employeeId)}</strong> (${esc(fmtMonth(s.month))})? This action cannot be undone.`,
+    });
+    if (!ok) return;
+    db.salaries = db.salaries.filter((x) => x.id !== id);
+    save();
+    renderAll();
+    toast('Salary record deleted');
   }
 
   /* ================= INIT ================= */
@@ -1636,6 +3902,114 @@
         chip.classList.add('active');
         visitFilterStatus = chip.dataset.status;
         renderVisits();
+      });
+    });
+
+    // Appointments
+    $('#addAppointmentBtn').addEventListener('click', () => openAppointmentForm());
+    $('#appointmentSearch').addEventListener('input', (e) => {
+      appointmentSearch = e.target.value;
+      renderAppointments();
+    });
+    $$('#appointmentFilters .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        $$('#appointmentFilters .chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        appointmentFilterStatus = chip.dataset.status;
+        renderAppointments();
+      });
+    });
+
+    // Payments
+    $('#addPaymentBtn').addEventListener('click', () => openPaymentForm());
+    $('#paymentSearch').addEventListener('input', (e) => {
+      paymentSearch = e.target.value;
+      renderPayments();
+    });
+    $$('#paymentFilters .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        $$('#paymentFilters .chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        if (chip.dataset.method) {
+          paymentFilterMethod = chip.dataset.method;
+          paymentFilterStatus = 'all';
+        } else if (chip.dataset.status) {
+          paymentFilterStatus = chip.dataset.status;
+          paymentFilterMethod = 'all';
+        }
+        renderPayments();
+      });
+    });
+
+    // Expenses
+    $('#addExpenseBtn').addEventListener('click', () => openExpenseForm());
+    $('#expenseSearch').addEventListener('input', (e) => {
+      expenseSearch = e.target.value;
+      renderExpenses();
+    });
+    $$('#expenseFilters .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        $$('#expenseFilters .chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        expenseFilterCat = chip.dataset.cat;
+        renderExpenses();
+      });
+    });
+
+    // Maintenance
+    $('#addMaintenanceBtn').addEventListener('click', () => openMaintenanceForm());
+    $('#maintenanceSearch').addEventListener('input', (e) => {
+      maintenanceSearch = e.target.value;
+      renderMaintenance();
+    });
+    $$('#maintenanceFilters .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        $$('#maintenanceFilters .chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        maintenanceFilterStatus = chip.dataset.status;
+        renderMaintenance();
+      });
+    });
+
+    // Attendance
+    $('#attendanceDate').value = attendanceDate;
+    $('#attendanceDate').addEventListener('change', (e) => {
+      attendanceDate = e.target.value || todayISO();
+      renderAttendance();
+    });
+    $('#attendanceSearch').addEventListener('input', (e) => {
+      attendanceSearch = e.target.value;
+      renderAttendance();
+    });
+    $('#markAllPresentBtn').addEventListener('click', markAllPresent);
+
+    // Leaves
+    $('#addLeaveBtn').addEventListener('click', () => openLeaveForm());
+    $('#leaveSearch').addEventListener('input', (e) => {
+      leaveSearch = e.target.value;
+      renderLeaves();
+    });
+    $$('#leaveFilters .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        $$('#leaveFilters .chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        leaveFilterStatus = chip.dataset.status;
+        renderLeaves();
+      });
+    });
+
+    // Salary
+    $('#addSalaryBtn').addEventListener('click', () => openSalaryForm());
+    $('#salarySearch').addEventListener('input', (e) => {
+      salarySearch = e.target.value;
+      renderSalary();
+    });
+    $$('#salaryFilters .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        $$('#salaryFilters .chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        salaryFilterStatus = chip.dataset.status;
+        renderSalary();
       });
     });
 
