@@ -172,6 +172,85 @@
     return db.customers.find((c) => c.id !== excludeId && mobileKey(c.mobile) === key) || null;
   }
 
+  /* ---------------- Auto payment status ---------------- */
+  function autoPayStatus(total, paid) {
+    const t = num(total);
+    const p = num(paid);
+    if (p <= 0) return 'Pending';
+    if (t > 0 && p < t) return 'Partial';
+    return 'Paid';
+  }
+
+  /* ---------------- Generic searchable picker ---------------- */
+  function pickerOptionsEmployee() {
+    return db.employees.map((e) => ({ id: e.id, label: e.fullName, sub: `${e.staffRole || 'Employee'}${e.mobile ? ' · ' + e.mobile : ''}` }));
+  }
+
+  function pickerOptionsCustomer() {
+    return db.customers.map((c) => ({ id: c.id, label: c.fullName, sub: `${c.mobile || ''}${c.email ? ' · ' + c.email : ''}` }));
+  }
+
+  function pickerOptionsService() {
+    return db.services
+      .filter((s) => s.status !== 'Inactive')
+      .map((s) => ({ id: s.id, label: s.name, sub: `${s.category || 'General'}${s.price != null && s.price !== '' ? ' · ' + fmtMoney(s.price) : ''}`, price: s.price, unit: s.unit, name: s.name }));
+  }
+
+  function pickerSearch(options, q) {
+    let list = options;
+    if (q) {
+      list = options.filter((o) => String(o.label || '').toLowerCase().includes(q) || String(o.sub || '').toLowerCase().includes(q) || String(o.id || '').toLowerCase().includes(q));
+    }
+    return sortSearchResults(list, q, (o) => String(o.label || '').toLowerCase()).slice(0, 8);
+  }
+
+  function pickerItemHTML(o, i) {
+    return `
+      <div class="ac-item" data-ac-item data-ac-index="${i}" data-id="${esc(o.id)}">
+        <div class="ac-info">
+          <div class="ac-name">${esc(o.label)}</div>
+          ${o.sub ? `<div class="ac-meta">${esc(o.sub)}</div>` : ''}
+        </div>
+      </div>`;
+  }
+
+  function pickerFieldHTML(base, name, placeholder, currentId, currentLabel) {
+    return `
+      <div class="autocomplete">
+        <input type="text" id="${base}Input" placeholder="${esc(placeholder)}" autocomplete="off" value="${esc(currentLabel || '')}" />
+        <div class="ac-list" id="${base}List"></div>
+      </div>
+      <input type="hidden" name="${name}" id="${base}Id" value="${esc(currentId || '')}" />`;
+  }
+
+  function wirePicker(wrap, { base, options, placeholder = 'Type to search...', emptyMessage = 'No match found. Check spelling or add a new record first.', onChoose, onClear }) {
+    const input = $('#' + base + 'Input', wrap);
+    const list = $('#' + base + 'List', wrap);
+    const hidden = $('#' + base + 'Id', wrap);
+    setupAutocomplete({
+      input,
+      list,
+      emptyMessage,
+      search: (q) => pickerSearch(options(), q),
+      renderItem: pickerItemHTML,
+      onChoose: (o) => {
+        hidden.value = o.id;
+        input.value = o.label;
+        if (typeof onChoose === 'function') onChoose(o);
+      },
+      onQueryChange: () => {
+        hidden.value = '';
+        if (typeof onClear === 'function') onClear();
+      },
+    });
+    return { input, hidden };
+  }
+
+  function pickerLabelById(options, id) {
+    const found = options().find((o) => o.id === id);
+    return found ? found.label : '';
+  }
+
   function daysUntilBirthday(dobISO) {
     if (!dobISO) return null;
     const dob = new Date(dobISO + 'T00:00:00');
@@ -398,14 +477,14 @@
     const match = (v) => String(v || '').toLowerCase().includes(q);
 
     db.customers
-      .filter((c) => match(c.fullName) || match(c.mobile) || match(c.email) || match(c.id))
+      .filter((c) => match(c.fullName) || match(c.mobile) || match(c.email))
       .slice(0, 4)
-      .forEach((c) => results.push({ type: 'customer', id: c.id, title: c.fullName, meta: `${c.mobile || ''}${c.email ? ' · ' + c.email : ''}`, badge: c.id, icon: 'user' }));
+      .forEach((c) => results.push({ type: 'customer', id: c.id, title: c.fullName, meta: `${c.mobile || ''}${c.email ? ' · ' + c.email : ''}`, badge: c.mobile || 'Customer', icon: 'user' }));
 
     db.employees
-      .filter((e) => match(e.fullName) || match(e.staffRole) || match(e.mobile) || match(e.id))
+      .filter((e) => match(e.fullName) || match(e.staffRole) || match(e.mobile))
       .slice(0, 4)
-      .forEach((e) => results.push({ type: 'employee', id: e.id, title: e.fullName, meta: `${e.staffRole || 'Employee'} · ${e.mobile || e.id}`, badge: e.id, icon: 'users' }));
+      .forEach((e) => results.push({ type: 'employee', id: e.id, title: e.fullName, meta: `${e.staffRole || 'Employee'} · ${e.mobile || ''}`, badge: e.staffRole || 'Employee', icon: 'users' }));
 
     db.services
       .filter((s) => match(s.name) || match(s.category) || match(s.id))
@@ -744,6 +823,8 @@
   let employeeSearch = '';
 
   function renderEmployees() {
+    $('#addEmployeeBtn').style.display = db.employees.length ? '' : 'none';
+
     const q = employeeSearch.toLowerCase();
     const list = db.employees.filter(
       (e) =>
@@ -787,11 +868,11 @@
             </div>
           </div>
         </td>
-        <td data-label="Employee ID"><strong style="color:var(--brand)">${esc(e.id)}</strong></td>
         <td data-label="Staff Role">${esc(e.staffRole || '·')}</td>
         <td data-label="Specialties">${esc(e.specialties || '·')}</td>
         <td data-label="Mobile">${esc(e.mobile || '·')}</td>
-        <td data-label="Status">${empStatusBadge(e.employmentStatus)}</td>
+        <td data-label="Salary">${e.salary ? `<strong>${fmtMoney(e.salary)}</strong>` : '·'}</td>
+        <td data-label="Status">${employeeStatusCell(e)}</td>
         <td data-label="Joining Date">${fmtDate(e.joiningDate)}</td>
         <td class="col-actions">
           <div class="row-actions">
@@ -840,20 +921,38 @@
     return `<span class="badge ${map[status] || 'badge-gray'}">${esc(status || '·')}</span>`;
   }
 
-  function openEmployeeForm(id = null) {
+  /* Live status: Active employees not present today automatically show "Not Present" */
+  function employeeStatusCell(e) {
+    if (e.employmentStatus !== 'Active') return empStatusBadge(e.employmentStatus);
+    const rec = attendanceFor(e.id, todayISO());
+    if (!rec) return '<span class="badge badge-amber">Not Present</span>';
+    const map = { Present: 'badge-green', Late: 'badge-amber', Absent: 'badge-red', 'Half Day': 'badge-sky' };
+    return `<span class="badge ${map[rec.status] || 'badge-green'}">${esc(rec.status)}</span>`;
+  }
+
+  ﻿  function openEmployeeForm(id = null) {
     const emp = id ? db.employees.find((e) => e.id === id) : null;
 
     const staffRoles = ['Salon Manager', 'Receptionist', 'Hair Stylist', 'Barber', 'Beautician', 'Makeup Artist', 'Nail Technician', 'Esthetician', 'Spa Therapist', 'Apprentice'];
     const shifts = ['Morning', 'Afternoon', 'Evening', 'Full Day'];
     const statuses = ['Active', 'Probation', 'On Leave', 'Resigned', 'Terminated'];
+    const genders = ['Male', 'Female', 'Other'];
 
     const body = `
-      <form id="empForm" class="form-grid" autocomplete="off">
-        <div class="field">
-          <label>Employee ID</label>
-          <div class="auto-id-box"><span>Auto-generated</span><span>${emp ? esc(emp.id) : peekId('emp')}</span></div>
+      <div class="modal-hero">
+        <div class="modal-hero-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
         </div>
-        <div class="field">
+        <div class="modal-hero-info">
+          <h3>${emp ? 'Edit Employee' : 'Add New Employee'}</h3>
+          <p>${emp ? 'Update the employee details below' : 'Register a new team member with their salary'}</p>
+        </div>
+      </div>
+
+      <form id="empForm" class="form-grid" autocomplete="off">
+        <div class="form-section-title first"><span class="num">1</span> Personal Details</div>
+
+        <div class="field span-2">
           <label>Full Name <span class="req">*</span></label>
           <input name="fullName" required placeholder="e.g. Ayesha Rahman" value="${esc(emp?.fullName || '')}" />
         </div>
@@ -863,28 +962,23 @@
           <input type="date" name="dob" required value="${esc(emp?.dob || '')}" />
         </div>
         <div class="field">
-          <label>Gender <span class="req">*</span></label>
-          <select name="gender" required>
-            <option value="">Select gender</option>
-            ${['Male', 'Female', 'Other'].map((g) => `<option ${emp?.gender === g ? 'selected' : ''}>${g}</option>`).join('')}
-          </select>
-        </div>
-
-        <div class="field">
           <label>Mobile Number <span class="req">*</span></label>
-          <input name="mobile" required placeholder="e.g. +91 98765 43210" value="${esc(emp?.mobile || '')}" />
-        </div>
-        <div class="field">
-          <label>Staff Role <span class="req">*</span></label>
-          <select name="staffRole" required>
-            <option value="">Select staff role</option>
-            ${staffRoles.map((r) => `<option ${emp?.staffRole === r ? 'selected' : ''}>${r}</option>`).join('')}
-          </select>
+          <input type="tel" name="mobile" required placeholder="e.g. +91 98765 43210" value="${esc(emp?.mobile || '')}" />
         </div>
 
         <div class="field span-2">
-          <label>Specialties / Services</label>
-          <input name="specialties" placeholder="e.g. Haircut, Hair Color, Bridal Makeup" value="${esc(emp?.specialties || '')}" />
+          <label>Gender <span class="req">*</span></label>
+          <div class="pay-methods">
+            ${genders
+              .map(
+                (g) => `
+              <label class="pay-method">
+                <input type="radio" name="gender" value="${g}" ${(emp?.gender || '') === g ? 'checked' : ''} />
+                <span>${g}</span>
+              </label>`
+              )
+              .join('')}
+          </div>
         </div>
 
         <div class="field span-2">
@@ -892,15 +986,29 @@
           <textarea name="address" placeholder="Full address...">${esc(emp?.address || '')}</textarea>
         </div>
 
+        <div class="form-section-title"><span class="num">2</span> Employment</div>
+
+        <div class="field">
+          <label>Staff Role <span class="req">*</span></label>
+          <select name="staffRole" required>
+            <option value="">Select staff role</option>
+            ${staffRoles.map((r) => `<option ${emp?.staffRole === r ? 'selected' : ''}>${r}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Monthly Salary (₹) <span class="req">*</span></label>
+          <input type="number" name="salary" min="0" step="1" required placeholder="e.g. 25000" value="${esc(emp?.salary || '')}" />
+        </div>
+
+        <div class="field span-2">
+          <label>Specialties / Services</label>
+          <input name="specialties" placeholder="e.g. Haircut, Hair Color, Bridal Makeup" value="${esc(emp?.specialties || '')}" />
+        </div>
+
         <div class="field">
           <label>Experience (Years)</label>
           <input type="number" name="experienceYears" min="0" max="60" placeholder="e.g. 5" value="${esc(emp?.experienceYears || '')}" />
         </div>
-        <div class="field">
-          <label>Commission Rate (%)</label>
-          <input type="number" name="commissionRate" min="0" max="100" step="0.5" placeholder="e.g. 30" value="${esc(emp?.commissionRate || '')}" />
-        </div>
-
         <div class="field">
           <label>Shift</label>
           <select name="shift">
@@ -908,6 +1016,7 @@
             ${shifts.map((s) => `<option ${emp?.shift === s ? 'selected' : ''}>${s}</option>`).join('')}
           </select>
         </div>
+
         <div class="field">
           <label>Joining Date <span class="req">*</span></label>
           <input type="date" name="joiningDate" required value="${esc(emp?.joiningDate || '')}" />
@@ -927,7 +1036,7 @@
 
     openModal({
       title: emp ? 'Edit Employee' : 'Create Employee',
-      subtitle: emp ? `Updating ${emp.id}` : 'Fill in the employee details below',
+      subtitle: emp ? 'Update team member details' : 'New team member registration',
       size: 'lg',
       body,
       footer: `
@@ -939,7 +1048,13 @@
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
           if (!form.reportValidity()) return;
-          const data = Object.fromEntries(new FormData(form).entries());
+          const fd = new FormData(form);
+          const data = Object.fromEntries(fd.entries());
+          data.gender = fd.get('gender') || '';
+          if (!data.gender) {
+            toast('Please select a gender.', 'error');
+            return;
+          }
 
           if (emp) {
             Object.assign(emp, data);
@@ -948,7 +1063,7 @@
             data.id = nextId('emp');
             data.createdAt = new Date().toISOString();
             db.employees.push(data);
-            toast(`Employee created · ${data.id}`);
+            toast('Employee created successfully');
           }
           save();
           close();
@@ -972,8 +1087,8 @@
           <h2>${esc(e.fullName)}</h2>
           <div class="role">${esc(e.staffRole || '·')} · ${esc(e.specialties || '·')}</div>
           <div class="badges">
-            <span class="badge badge-brand">${esc(e.id)}</span>
             ${empStatusBadge(e.employmentStatus)}
+            <span class="badge badge-gray">${esc(e.shift || 'No shift')}</span>
             <span class="badge badge-gray">${visits.length} visit${visits.length === 1 ? '' : 's'} · ${openVisits} open</span>
           </div>
         </div>
@@ -992,10 +1107,10 @@
         <div class="detail-item"><div class="label">Staff Role</div><div class="value">${esc(e.staffRole || '·')}</div></div>
         <div class="detail-item"><div class="label">Specialties / Services</div><div class="value">${esc(e.specialties || '·')}</div></div>
         <div class="detail-item"><div class="label">Experience (Years)</div><div class="value">${esc(e.experienceYears || '·')}</div></div>
-        <div class="detail-item"><div class="label">Commission Rate</div><div class="value">${e.commissionRate ? esc(e.commissionRate) + '%' : '·'}</div></div>
+        <div class="detail-item"><div class="label">Monthly Salary</div><div class="value">${e.salary ? fmtMoney(e.salary) : '·'}</div></div>
         <div class="detail-item"><div class="label">Shift</div><div class="value">${esc(e.shift || '·')}</div></div>
         <div class="detail-item"><div class="label">Joining Date</div><div class="value">${fmtDate(e.joiningDate)}</div></div>
-        <div class="detail-item"><div class="label">Employment Status</div><div class="value">${esc(e.employmentStatus || '·')}</div></div>
+        <div class="detail-item"><div class="label">Employment Status</div><div class="value">${empStatusBadge(e.employmentStatus)}</div></div>
         <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(e.notes || '·')}</div></div>
       </div>`;
 
@@ -1106,6 +1221,8 @@
   }
 
   function renderCustomers() {
+    $('#addCustomerBtn').style.display = db.customers.length ? '' : 'none';
+
     renderCustomerStats();
 
     const q = customerSearch.toLowerCase();
@@ -1142,8 +1259,9 @@
     }
 
     tbody.innerHTML = list
-      .map(
-        (c) => `
+      .map((c) => {
+        const due = num(c.totalAmount) - num(c.paidAmount);
+        return `
       <tr data-id="${esc(c.id)}">
         <td data-label="Customer">
           <div class="person-cell">
@@ -1154,11 +1272,13 @@
             </div>
           </div>
         </td>
-        <td data-label="Customer ID"><strong style="color:var(--brand)">${esc(c.id)}</strong></td>
         <td data-label="Mobile">${esc(c.mobile || '·')}</td>
         <td data-label="Email">${esc(c.email || '·')}</td>
         <td data-label="Assigned To">${esc(db.employees.find((e) => e.id === c.employeeId)?.fullName || '·')}</td>
-        <td data-label="Payment">${c.totalAmount ? `<strong>${fmtMoney(c.totalAmount)}</strong>` : '·'} ${c.paymentStatus ? payStatusBadge(c.paymentStatus) : ''}</td>
+        <td data-label="Payment">
+          ${c.totalAmount ? `<strong>${fmtMoney(c.totalAmount)}</strong>` : '·'} ${c.paymentStatus ? payStatusBadge(c.paymentStatus) : ''}
+          ${due > 0 ? `<div class="person-meta" style="color:var(--red)">Due ${fmtMoney(due)}</div>` : ''}
+        </td>
         <td data-label="Date of Birth">${fmtDate(c.dob)}${isTodayBirthday(c.dob) ? ' 🎂' : ''}</td>
         <td class="col-actions">
           <div class="row-actions">
@@ -1176,8 +1296,8 @@
             </button>
           </div>
         </td>
-      </tr>`
-      )
+      </tr>`;
+      })
       .join('');
 
     $$('#customerTable tbody tr').forEach((tr) => {
@@ -1203,7 +1323,7 @@
     });
   }
 
-  function openCustomerForm(id = null, opts = {}) {
+  ﻿  function openCustomerForm(id = null, opts = {}) {
     const cus = id ? db.customers.find((c) => c.id === id) : null;
 
     if (!id && (!db.employees.length || !db.services.length)) {
@@ -1211,20 +1331,12 @@
       return;
     }
 
-    const empOptions = db.employees
-      .map((e) => `<option value="${esc(e.id)}" ${cus?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.specialties || e.id)}</option>`)
-      .join('');
-    const svcOptions = db.services
-      .map((s) => `<option value="${esc(s.id)}" ${cus?.serviceId === s.id ? 'selected' : ''}>${esc(s.name)}${s.price ? ` (${fmtMoney(s.price)})` : ''}</option>`)
-      .join('');
-
     const methods = [
       { v: 'Cash', hint: 'Pay at counter' },
       { v: 'UPI', hint: 'GPay / PhonePe' },
-      { v: 'Card', hint: 'Credit / Debit' },
-      { v: 'Bank Transfer', hint: 'NEFT / IMPS' },
     ];
     const selectedMethod = cus?.paymentMethod || 'Cash';
+    const currentPayStatus = cus ? autoPayStatus(cus.totalAmount, cus.paidAmount) : 'Pending';
 
     const body = `
       <div class="modal-hero">
@@ -1233,9 +1345,8 @@
         </div>
         <div class="modal-hero-info">
           <h3>${cus ? 'Edit Customer' : 'Add New Customer'}</h3>
-          <p>${cus ? `Update the details of ${esc(cus.id)}` : 'Register a customer & record their first payment'}</p>
+          <p>${cus ? 'Update the customer details' : 'Register a customer — payment status updates automatically'}</p>
         </div>
-        <span class="modal-hero-id">${cus ? esc(cus.id) : peekId('cus')}</span>
       </div>
 
       <form id="cusForm" class="form-grid" autocomplete="off">
@@ -1269,28 +1380,26 @@
 
         <div class="field">
           <label>Assigned Employee <span class="req">*</span></label>
-          <select name="employeeId" required>
-            <option value="">Select employee</option>
-            ${empOptions}
-          </select>
+          ${pickerFieldHTML('cusEmp', 'employeeId', 'Type employee name to search...', cus?.employeeId || '', pickerLabelById(pickerOptionsEmployee, cus?.employeeId || ''))}
         </div>
         <div class="field">
           <label>Service <span class="req">*</span></label>
-          <select name="serviceId" required>
-            <option value="">Select service</option>
-            ${svcOptions}
-          </select>
+          ${pickerFieldHTML('cusSvc', 'serviceId', 'Type service name to search...', cus?.serviceId || '', pickerLabelById(pickerOptionsService, cus?.serviceId || ''))}
         </div>
 
         <div class="form-section-title"><span class="num">3</span> Payment Details</div>
 
         <div class="field">
           <label>Total Amount (₹)</label>
-          <input type="number" name="totalAmount" min="0" step="0.01" placeholder="e.g. 2000" value="${esc(cus?.totalAmount || '')}" />
+          <input type="number" name="totalAmount" min="0" step="0.01" placeholder="e.g. 20000" value="${esc(cus?.totalAmount || '')}" />
         </div>
         <div class="field">
           <label>Paid Amount (₹)</label>
-          <input type="number" name="paidAmount" min="0" step="0.01" placeholder="e.g. 2000" value="${esc(cus?.paidAmount || '')}" />
+          <input type="number" name="paidAmount" min="0" step="0.01" placeholder="e.g. 1000" value="${esc(cus?.paidAmount || '')}" />
+        </div>
+
+        <div class="field span-2">
+          <div class="auto-price-box empty" id="cusDueHint">Enter amounts to see payment status &amp; due</div>
         </div>
 
         <div class="field span-2">
@@ -1309,9 +1418,9 @@
         </div>
 
         <div class="field">
-          <label>Payment Status <span class="req">*</span></label>
-          <select name="paymentStatus" required>
-            ${['Paid', 'Partial', 'Pending'].map((p) => `<option ${(cus?.paymentStatus || 'Pending') === p ? 'selected' : ''}>${p}</option>`).join('')}
+          <label>Payment Status (auto)</label>
+          <select name="paymentStatus" id="cusPayStatus">
+            ${['Paid', 'Partial', 'Pending'].map((p) => `<option ${currentPayStatus === p ? 'selected' : ''}>${p}</option>`).join('')}
           </select>
         </div>
         <div class="field"></div>
@@ -1324,7 +1433,7 @@
 
     openModal({
       title: cus ? 'Edit Customer' : 'Add Customer',
-      subtitle: cus ? `Updating ${cus.id}` : 'New customer registration',
+      subtitle: cus ? 'Update customer details' : 'New customer registration',
       size: 'lg',
       body,
       footer: `
@@ -1332,11 +1441,43 @@
         <button class="btn btn-primary" data-act="save">${cus ? 'Save Changes' : 'Add Customer'}</button>`,
       onOpen: (wrap, close) => {
         const form = $('#cusForm', wrap);
+        const dueHint = $('#cusDueHint', wrap);
+        const statusSel = $('#cusPayStatus', wrap);
 
-        form.serviceId.addEventListener('change', () => {
-          const svc = db.services.find((s) => s.id === form.serviceId.value);
-          if (svc && svc.price != null && svc.price !== '') form.totalAmount.value = svc.price;
+        // Searchable pickers
+        wirePicker(wrap, {
+          base: 'cusEmp',
+          options: pickerOptionsEmployee,
         });
+        wirePicker(wrap, {
+          base: 'cusSvc',
+          options: pickerOptionsService,
+          onChoose: (o) => {
+            if (o.price != null && o.price !== '') form.totalAmount.value = o.price;
+            syncPayStatus();
+          },
+        });
+
+        // Auto payment status from total vs paid
+        function syncPayStatus() {
+          const t = form.totalAmount.value;
+          const p = form.paidAmount.value;
+          if (t === '' && p === '') {
+            statusSel.value = 'Pending';
+            dueHint.classList.add('empty');
+            dueHint.textContent = 'Enter amounts to see payment status & due';
+            return;
+          }
+          const status = autoPayStatus(t, p);
+          statusSel.value = status;
+          const due = num(t) - num(p);
+          dueHint.classList.remove('empty');
+          if (due > 0) dueHint.innerHTML = `Payment: <strong>${status}</strong> · Due amount: <strong style="color:var(--red)">${fmtMoney(due)}</strong>`;
+          else dueHint.innerHTML = `Payment: <strong>${status}</strong> · Fully paid ✓`;
+        }
+        form.totalAmount.addEventListener('input', syncPayStatus);
+        form.paidAmount.addEventListener('input', syncPayStatus);
+        syncPayStatus();
 
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
@@ -1345,17 +1486,33 @@
           const data = Object.fromEntries(fd.entries());
           data.paymentMethod = fd.get('paymentMethod') || 'Cash';
 
+          if (!data.employeeId) {
+            toast('Please select an employee from the suggestions.', 'error');
+            return;
+          }
+          if (!data.serviceId) {
+            toast('Please select a service from the suggestions.', 'error');
+            return;
+          }
+          const svc = db.services.find((s) => s.id === data.serviceId);
+          if (!svc) {
+            toast('Selected service no longer exists. Please search again.', 'error');
+            return;
+          }
+
+          // Payment status is always derived from amounts
+          data.paymentStatus = autoPayStatus(data.totalAmount, data.paidAmount);
+
           // Prevent duplicate customers — mobile number must be unique
           const duplicate = findCustomerByMobile(data.mobile, cus ? cus.id : null);
           if (duplicate) {
             if (!cus && opts.reuseOnDuplicateMobile) {
-              // Reuse the existing customer instead of creating a duplicate
-              toast(`Existing customer reused · ${duplicate.id} · ${duplicate.fullName}`);
+              toast(`Existing customer reused · ${duplicate.fullName}`);
               if (typeof opts.onSelectExisting === 'function') opts.onSelectExisting(duplicate);
               close();
               return;
             }
-            toast(`Mobile number already registered to ${duplicate.fullName} (${duplicate.id}). Each customer can only be added once.`, 'error');
+            toast(`Mobile number already registered to ${duplicate.fullName}. Each customer can only be added once.`, 'error');
             return;
           }
 
@@ -1367,9 +1524,7 @@
             data.createdAt = new Date().toISOString();
             db.customers.push(data);
 
-            // Store the service given to this customer in the Visits section
             if (data.serviceId) {
-              const svc = db.services.find((s) => s.id === data.serviceId);
               const now = new Date();
               db.visits.push({
                 id: nextId('visit'),
@@ -1380,14 +1535,13 @@
                 serviceName: svc?.name || '',
                 amount: data.totalAmount || svc?.price || '',
                 paymentMethod: data.paymentMethod || 'Cash',
-                paymentStatus: data.paymentStatus || 'Pending',
+                paymentStatus: data.paymentStatus,
                 status: 'Completed',
                 notes: 'Service given on customer registration',
                 createdAt: now.toISOString(),
               });
             }
 
-            // Auto-record a payment entry when an amount was paid
             if (num(data.paidAmount) > 0) {
               db.payments.push({
                 id: nextId('pay'),
@@ -1401,7 +1555,7 @@
               });
             }
 
-            toast(`Customer added · ${data.id}${data.serviceId ? ' · visit recorded' : ''}`);
+            toast(`Customer added${data.serviceId ? ' · visit recorded' : ''}`);
             if (typeof opts.onCreated === 'function') opts.onCreated(data);
           }
           save();
@@ -1419,17 +1573,18 @@
     const visits = db.visits.filter((v) => v.customerId === id);
     const empCus = db.employees.find((e) => e.id === c.employeeId);
     const svcCus = db.services.find((s) => s.id === c.serviceId);
+    const due = num(c.totalAmount) - num(c.paidAmount);
 
     const body = `
       <div class="profile-hero">
         ${avatarHTML(c, 'avatar-xl')}
         <div class="profile-hero-info">
           <h2>${esc(c.fullName)}</h2>
-          <div class="role">Customer · ${esc(c.id)}</div>
+          <div class="role">Customer</div>
           <div class="badges">
-            <span class="badge badge-brand">${esc(c.id)}</span>
             <span class="badge badge-gray">${visits.length} visit${visits.length === 1 ? '' : 's'}</span>
             ${c.paymentStatus ? payStatusBadge(c.paymentStatus) : ''}
+            ${due > 0 ? `<span class="badge badge-red">Due ${fmtMoney(due)}</span>` : ''}
           </div>
         </div>
       </div>
@@ -1452,8 +1607,9 @@
 
       <div class="detail-section-title">Payment Details</div>
       <div class="detail-grid">
-        <div class="detail-item"><div class="label">Total Amount</div><div class="value">${c.totalAmount ? `₹${esc(c.totalAmount)}` : '·'}</div></div>
-        <div class="detail-item"><div class="label">Paid Amount</div><div class="value">${c.paidAmount ? `₹${esc(c.paidAmount)}` : '·'}</div></div>
+        <div class="detail-item"><div class="label">Total Amount</div><div class="value">${c.totalAmount ? fmtMoney(c.totalAmount) : '·'}</div></div>
+        <div class="detail-item"><div class="label">Paid Amount</div><div class="value">${c.paidAmount ? fmtMoney(c.paidAmount) : '·'}</div></div>
+        <div class="detail-item"><div class="label">Due Amount</div><div class="value">${due > 0 ? `<strong style="color:var(--red)">${fmtMoney(due)}</strong>` : (num(c.totalAmount) ? 'Fully paid ✓' : '·')}</div></div>
         <div class="detail-item"><div class="label">Payment Method</div><div class="value">${esc(c.paymentMethod || '·')}</div></div>
         <div class="detail-item"><div class="label">Payment Status</div><div class="value">${c.paymentStatus ? payStatusBadge(c.paymentStatus) : '·'}</div></div>
       </div>
@@ -1525,6 +1681,8 @@
   let visitFilterStatus = 'all';
 
   function renderVisits() {
+    $('#addVisitBtn').style.display = db.visits.length ? '' : 'none';
+
     const q = visitSearch.toLowerCase();
     let list = [...db.visits].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
@@ -1627,7 +1785,7 @@
     });
   }
 
-  function openVisitForm(id = null, prefill = {}) {
+  ﻿  function openVisitForm(id = null, prefill = {}) {
     const visit = id ? db.visits.find((v) => v.id === id) : null;
 
     if (!db.employees.length || !db.customers.length) {
@@ -1645,16 +1803,6 @@
       else if (preSvc) amountVal = db.services.find((s) => s.id === preSvc)?.price ?? '';
     }
 
-    const empOptions = db.employees
-      .map((e) => `<option value="${esc(e.id)}" ${preEmp === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.specialties || e.id)}</option>`)
-      .join('');
-    const cusOptions = db.customers
-      .map((c) => `<option value="${esc(c.id)}" ${preCus === c.id ? 'selected' : ''}>${esc(c.fullName)} (${esc(c.id)})</option>`)
-      .join('');
-    const svcOptions = db.services
-      .map((s) => `<option value="${esc(s.id)}" ${preSvc === s.id ? 'selected' : ''}>${esc(s.name)}${s.price ? ` (₹${esc(s.price)})` : ''}</option>`)
-      .join('');
-
     let localDT = visit?.visitDateTime ? visit.visitDateTime.slice(0, 16) : '';
     if (!localDT && !visit) {
       const now = new Date();
@@ -1662,37 +1810,34 @@
     }
 
     const body = `
+      <div class="modal-hero">
+        <div class="modal-hero-icon" style="background:linear-gradient(135deg,#38bdf8,#0b7fc9 60%,#075985);box-shadow:0 8px 18px rgba(11,127,201,0.35)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+        </div>
+        <div class="modal-hero-info">
+          <h3>${visit ? 'Edit Visit' : 'New Visit'}</h3>
+          <p>${visit ? 'Update the visit record' : 'Record a customer visit & payment'}</p>
+        </div>
+        <span class="modal-hero-id">${visit ? esc(visit.id) : peekId('visit')}</span>
+      </div>
+
       <form id="visitForm" class="form-grid" autocomplete="off">
-        <div class="field">
-          <label>Visit ID</label>
-          <div class="auto-id-box"><span>Auto-generated</span><span>${visit ? esc(visit.id) : peekId('visit')}</span></div>
-        </div>
-        <div class="field">
-          <label>Visit Date &amp; Time <span class="req">*</span></label>
-          <input type="datetime-local" name="visitDateTime" required value="${esc(localDT)}" />
-        </div>
+        <div class="form-section-title first"><span class="num">1</span> Customer &amp; Staff</div>
 
         <div class="field">
           <label>Customer <span class="req">*</span></label>
-          <select name="customerId" required>
-            <option value="">Select customer</option>
-            ${cusOptions}
-          </select>
+          ${pickerFieldHTML('vstCus', 'customerId', 'Type customer name to search...', preCus, pickerLabelById(pickerOptionsCustomer, preCus))}
         </div>
         <div class="field">
           <label>Assign To (Employee) <span class="req">*</span></label>
-          <select name="employeeId" required>
-            <option value="">Select employee</option>
-            ${empOptions}
-          </select>
+          ${pickerFieldHTML('vstEmp', 'employeeId', 'Type employee name to search...', preEmp, pickerLabelById(pickerOptionsEmployee, preEmp))}
         </div>
+
+        <div class="form-section-title"><span class="num">2</span> Service &amp; Payment</div>
 
         <div class="field">
           <label>Service <span class="req">*</span></label>
-          <select name="serviceId" required>
-            <option value="">Select service</option>
-            ${svcOptions}
-          </select>
+          ${pickerFieldHTML('vstSvc', 'serviceId', 'Type service name to search...', preSvc, pickerLabelById(pickerOptionsService, preSvc))}
         </div>
         <div class="field">
           <label>Amount (₹)</label>
@@ -1702,7 +1847,7 @@
         <div class="field">
           <label>Payment Method <span class="req">*</span></label>
           <select name="paymentMethod" required>
-            ${['Cash', 'Card', 'UPI', 'Bank Transfer'].map((m) => `<option ${(visit?.paymentMethod || 'Cash') === m ? 'selected' : ''}>${m}</option>`).join('')}
+            ${['Cash', 'UPI', 'Card', 'Bank Transfer'].map((m) => `<option ${(visit?.paymentMethod || 'Cash') === m ? 'selected' : ''}>${m}</option>`).join('')}
           </select>
         </div>
         <div class="field">
@@ -1712,13 +1857,18 @@
           </select>
         </div>
 
+        <div class="form-section-title"><span class="num">3</span> Schedule</div>
+
+        <div class="field">
+          <label>Visit Date &amp; Time <span class="req">*</span></label>
+          <input type="datetime-local" name="visitDateTime" required value="${esc(localDT)}" />
+        </div>
         <div class="field">
           <label>Status <span class="req">*</span></label>
           <select name="status" required>
             ${['Scheduled', 'In Progress', 'Completed'].map((s) => `<option ${(visit?.status || 'Scheduled') === s ? 'selected' : ''}>${s}</option>`).join('')}
           </select>
         </div>
-        <div class="field"></div>
 
         <div class="field span-2">
           <label>Notes</label>
@@ -1728,7 +1878,7 @@
 
     openModal({
       title: visit ? 'Edit Visit' : 'New Visit',
-      subtitle: visit ? `Updating ${visit.id}` : 'Record a customer visit & payment',
+      subtitle: visit ? 'Update visit details' : 'Record a customer visit & payment',
       size: 'lg',
       body,
       footer: `
@@ -1737,29 +1887,56 @@
       onOpen: (wrap, close) => {
         const form = $('#visitForm', wrap);
 
-        // When picking a customer, pull their assigned employee, service & amount from the customer record
-        if (!visit) {
-          form.customerId.addEventListener('change', () => {
-            const c = db.customers.find((x) => x.id === form.customerId.value);
-            if (!c) return;
-            if (c.employeeId && db.employees.some((e) => e.id === c.employeeId)) form.employeeId.value = c.employeeId;
+        wirePicker(wrap, {
+          base: 'vstCus',
+          options: pickerOptionsCustomer,
+          onChoose: (o) => {
+            const c = db.customers.find((x) => x.id === o.id);
+            if (!c || visit) return;
+            if (c.employeeId && db.employees.some((e) => e.id === c.employeeId)) {
+              $('#vstEmpId', wrap).value = c.employeeId;
+              $('#vstEmpInput', wrap).value = pickerLabelById(pickerOptionsEmployee, c.employeeId);
+            }
             if (c.serviceId && db.services.some((s) => s.id === c.serviceId)) {
-              form.serviceId.value = c.serviceId;
+              $('#vstSvcId', wrap).value = c.serviceId;
+              $('#vstSvcInput', wrap).value = pickerLabelById(pickerOptionsService, c.serviceId);
               form.amount.value = c.totalAmount || db.services.find((s) => s.id === c.serviceId)?.price || '';
             }
-          });
-        }
-
-        form.serviceId.addEventListener('change', () => {
-          const svc = db.services.find((s) => s.id === form.serviceId.value);
-          if (svc && svc.price != null && svc.price !== '') form.amount.value = svc.price;
+          },
+        });
+        wirePicker(wrap, { base: 'vstEmp', options: pickerOptionsEmployee });
+        wirePicker(wrap, {
+          base: 'vstSvc',
+          options: pickerOptionsService,
+          onChoose: (o) => {
+            if (o.price != null && o.price !== '') form.amount.value = o.price;
+          },
         });
 
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
           if (!form.reportValidity()) return;
-          const data = Object.fromEntries(new FormData(form).entries());
-          data.serviceName = db.services.find((s) => s.id === data.serviceId)?.name || '';
+          const fd = new FormData(form);
+          const data = Object.fromEntries(fd.entries());
+
+          if (!data.customerId) {
+            toast('Please select a customer from the suggestions.', 'error');
+            return;
+          }
+          if (!data.employeeId) {
+            toast('Please select an employee from the suggestions.', 'error');
+            return;
+          }
+          if (!data.serviceId) {
+            toast('Please select a service from the suggestions.', 'error');
+            return;
+          }
+          const svc = db.services.find((s) => s.id === data.serviceId);
+          if (!svc) {
+            toast('Selected service no longer exists. Please search again.', 'error');
+            return;
+          }
+          data.serviceName = svc.name;
 
           if (visit) {
             Object.assign(visit, data);
@@ -1815,18 +1992,16 @@
 
       <div class="detail-section-title">Customer</div>
       <div class="detail-grid">
-        <div class="detail-item"><div class="label">Name</div><div class="value">${esc(cus?.fullName || v.customerId)}</div></div>
+        <div class="detail-item"><div class="label">Name</div><div class="value">${esc(cus?.fullName || '·')}</div></div>
         <div class="detail-item"><div class="label">Mobile</div><div class="value">${esc(cus?.mobile || '·')}</div></div>
-        <div class="detail-item"><div class="label">Email</div><div class="value">${esc(cus?.email || '·')}</div></div>
-        <div class="detail-item"><div class="label">Customer ID</div><div class="value">${esc(cus?.id || v.customerId)}</div></div>
+        <div class="detail-item span-2"><div class="label">Email</div><div class="value">${esc(cus?.email || '·')}</div></div>
       </div>
 
       <div class="detail-section-title">Assigned Employee</div>
       <div class="detail-grid">
-        <div class="detail-item"><div class="label">Name</div><div class="value">${esc(emp?.fullName || v.employeeId)}</div></div>
+        <div class="detail-item"><div class="label">Name</div><div class="value">${esc(emp?.fullName || '·')}</div></div>
         <div class="detail-item"><div class="label">Staff Role</div><div class="value">${esc(emp?.staffRole || '·')}</div></div>
-        <div class="detail-item"><div class="label">Specialties</div><div class="value">${esc(emp?.specialties || '·')}</div></div>
-        <div class="detail-item"><div class="label">Employee ID</div><div class="value">${esc(emp?.id || v.employeeId)}</div></div>
+        <div class="detail-item span-2"><div class="label">Specialties</div><div class="value">${esc(emp?.specialties || '·')}</div></div>
       </div>`;
 
     openModal({
@@ -1934,6 +2109,8 @@
       )
       .join('');
 
+    $('#addAppointmentBtn').style.display = db.appointments.length ? '' : 'none';
+
     const q = appointmentSearch.toLowerCase();
     let list = [...db.appointments].sort((a, b) => `${b.date || ''}T${b.time || ''} ${b.createdAt || ''}`.localeCompare(`${a.date || ''}T${a.time || ''} ${a.createdAt || ''}`));
     if (appointmentFilterStatus !== 'all') list = list.filter((a) => a.status === appointmentFilterStatus);
@@ -2037,9 +2214,6 @@
       return;
     }
 
-    const empOptions = db.employees
-      .map((e) => `<option value="${esc(e.id)}" ${apt?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.id)}</option>`)
-      .join('');
     const statuses = ['Scheduled', 'Confirmed', 'Completed', 'Cancelled'];
 
     const body = `
@@ -2049,7 +2223,7 @@
         </div>
         <div class="modal-hero-info">
           <h3>${apt ? 'Edit Appointment' : 'New Appointment'}</h3>
-          <p>${apt ? `Update ${esc(apt.id)}` : 'Search an existing customer — no need to re-add them'}</p>
+          <p>${apt ? 'Update the appointment' : 'Search an existing customer — no need to re-add them'}</p>
         </div>
         <span class="modal-hero-id">${apt ? esc(apt.id) : peekId('apt')}</span>
       </div>
@@ -2067,10 +2241,7 @@
         </div>
         <div class="field">
           <label>Assigned Employee <span class="req">*</span></label>
-          <select name="employeeId" required>
-            <option value="">Select employee</option>
-            ${empOptions}
-          </select>
+          ${pickerFieldHTML('aptEmp', 'employeeId', 'Type employee name to search...', apt?.employeeId || '', pickerLabelById(pickerOptionsEmployee, apt?.employeeId || ''))}
         </div>
 
         <div class="linked-record span-2" id="aptCustomerPreview" hidden></div>
@@ -2139,6 +2310,8 @@
 
         let saving = false;
 
+        wirePicker(wrap, { base: 'aptEmp', options: pickerOptionsEmployee });
+
         function selectCustomer(cus) {
           custIdInput.value = cus.id;
           custInput.value = cus.fullName || '';
@@ -2148,7 +2321,6 @@
             <div class="lr-info">
               <div class="lr-name">${esc(cus.fullName)}</div>
               <div class="lr-meta">${esc(cus.mobile || '')}${cus.email ? ' · ' + esc(cus.email) : ''}</div>
-              <span class="lr-id">${esc(cus.id)}</span>
             </div>
             <button type="button" class="linked-clear" data-act="clear-customer" title="Clear customer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -2206,7 +2378,6 @@
                 <div class="ac-name">${esc(c.fullName)}</div>
                 <div class="ac-meta">${esc(c.mobile || '')}${c.email ? ' · ' + esc(c.email) : ''}</div>
               </div>
-              <span class="ac-badge badge badge-brand">${esc(c.id)}</span>
             </div>`,
           onChoose: (cus) => selectCustomer(cus),
           onQueryChange: clearCustomerSelection,
@@ -2363,7 +2534,6 @@
         <div class="detail-item"><div class="label">Name</div><div class="value">${esc(cus?.fullName || 'Unknown')}</div></div>
         <div class="detail-item"><div class="label">Mobile</div><div class="value">${esc(cus?.mobile || '·')}</div></div>
         <div class="detail-item"><div class="label">Email</div><div class="value">${esc(cus?.email || '·')}</div></div>
-        <div class="detail-item"><div class="label">Customer ID</div><div class="value">${esc(cus?.id || a.customerId)}</div></div>
       </div>
 
       <div class="detail-section-title">Assigned Employee</div>
@@ -2474,6 +2644,8 @@
   let serviceSearch = '';
 
   function renderServices() {
+    $('#addServiceBtn').style.display = db.services.length ? '' : 'none';
+
     const q = serviceSearch.toLowerCase();
     const list = db.services.filter(
       (s) => !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
@@ -2543,14 +2715,21 @@
     const categories = ['General', 'Consulting', 'Support', 'Maintenance', 'Installation', 'Training', 'Subscription', 'Custom', 'Other'];
 
     const body = `
-      <form id="svcForm" class="form-grid" autocomplete="off">
-        <div class="field">
-          <label>Service ID</label>
-          <div class="auto-id-box"><span>Auto-generated</span><span>${svc ? esc(svc.id) : peekId('svc')}</span></div>
+      <div class="modal-hero">
+        <div class="modal-hero-icon" style="background:linear-gradient(135deg,#a78bfa,#7c3aed 60%,#5b21b6);box-shadow:0 8px 18px rgba(124,58,237,0.35)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
         </div>
-        <div class="field">
+        <div class="modal-hero-info">
+          <h3>${svc ? 'Edit Service' : 'Add Service'}</h3>
+          <p>${svc ? 'Update the service details' : 'Add a new service to your catalog'}</p>
+        </div>
+        <span class="modal-hero-id">${svc ? esc(svc.id) : peekId('svc')}</span>
+      </div>
+
+      <form id="svcForm" class="form-grid" autocomplete="off">
+        <div class="field span-2">
           <label>Service Name <span class="req">*</span></label>
-          <input name="name" required placeholder="e.g. Website Maintenance" value="${esc(svc?.name || '')}" />
+          <input name="name" required placeholder="e.g. Bridal Makeup" value="${esc(svc?.name || '')}" />
         </div>
 
         <div class="field">
@@ -2671,6 +2850,8 @@
       .join('');
 
     // List
+    $('#addPaymentBtn').style.display = db.payments.length ? '' : 'none';
+
     const q = paymentSearch.toLowerCase();
     let list = [...db.payments].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     if (paymentFilterMethod === 'Cash') list = list.filter((p) => p.method === 'Cash');
@@ -2711,10 +2892,10 @@
         <td data-label="Payment ID"><strong style="color:var(--brand)">${esc(p.id)}</strong></td>
         <td data-label="Customer">
           <div class="person-cell">
-            ${avatarHTML(cus || { fullName: p.customerId || 'Walk-in' })}
+            ${avatarHTML(cus || { fullName: 'Walk-in' })}
             <div>
               <div class="person-name">${esc(cus?.fullName || 'Walk-in Customer')}</div>
-              <div class="person-meta">${esc(p.customerId || '')}</div>
+              <div class="person-meta">${esc(cus?.mobile || '')}</div>
             </div>
           </div>
         </td>
@@ -2780,9 +2961,6 @@
 
   function openPaymentForm(id = null) {
     const pay = id ? db.payments.find((p) => p.id === id) : null;
-    const cusOptions = db.customers
-      .map((c) => `<option value="${esc(c.id)}" ${pay?.customerId === c.id ? 'selected' : ''}>${esc(c.fullName)} (${esc(c.id)})</option>`)
-      .join('');
 
     const body = `
       <div class="modal-hero">
@@ -2791,7 +2969,7 @@
         </div>
         <div class="modal-hero-info">
           <h3>${pay ? 'Edit Payment' : 'Record Payment'}</h3>
-          <p>${pay ? `Update ${esc(pay.id)}` : 'Log a cash or online payment received'}</p>
+          <p>${pay ? `Update payment record` : 'Log a cash or online payment received'}</p>
         </div>
         <span class="modal-hero-id">${pay ? esc(pay.id) : peekId('pay')}</span>
       </div>
@@ -2799,10 +2977,7 @@
       <form id="payForm" class="form-grid" autocomplete="off">
         <div class="field span-2">
           <label>Customer</label>
-          <select name="customerId">
-            <option value="">Walk-in customer (no record)</option>
-            ${cusOptions}
-          </select>
+          ${pickerFieldHTML('payCus', 'customerId', 'Type customer name to search...', pay?.customerId || '', pickerLabelById(pickerOptionsCustomer, pay?.customerId || ''))}
         </div>
 
         <div class="field">
@@ -2843,6 +3018,7 @@
         <button class="btn btn-primary" data-act="save">${pay ? 'Save Changes' : 'Add Payment'}</button>`,
       onOpen: (wrap, close) => {
         const form = $('#payForm', wrap);
+        wirePicker(wrap, { base: 'payCus', options: pickerOptionsCustomer });
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
           if (!form.reportValidity()) return;
@@ -2973,6 +3149,8 @@
       </div>`
       )
       .join('');
+
+    $('#addExpenseBtn').style.display = db.expenses.length ? '' : 'none';
 
     const q = expenseSearch.toLowerCase();
     let list = [...db.expenses].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -3167,6 +3345,8 @@
       )
       .join('');
 
+    $('#addMaintenanceBtn').style.display = db.maintenance.length ? '' : 'none';
+
     const q = maintenanceSearch.toLowerCase();
     let list = [...db.maintenance].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     if (maintenanceFilterStatus !== 'all') list = list.filter((m) => m.status === maintenanceFilterStatus);
@@ -3248,10 +3428,6 @@
     const categories = ['Equipment', 'Facility', 'Cleaning', 'Repair', 'Safety', 'Other'];
     const priorities = ['Low', 'Medium', 'High', 'Urgent'];
 
-    const empOptions = db.employees
-      .map((e) => `<option value="${esc(e.id)}" ${m?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.id)}</option>`)
-      .join('');
-
     const body = `
       <div class="modal-hero">
         <div class="modal-hero-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed 60%,#5b21b6);box-shadow:0 8px 18px rgba(124,58,237,0.35)">
@@ -3259,7 +3435,7 @@
         </div>
         <div class="modal-hero-info">
           <h3>${m ? 'Edit Task' : 'New Maintenance Task'}</h3>
-          <p>${m ? `Update ${esc(m.id)}` : 'Schedule a repair, cleaning or servicing task'}</p>
+          <p>${m ? 'Update the task details' : 'Schedule a repair, cleaning or servicing task'}</p>
         </div>
         <span class="modal-hero-id">${m ? esc(m.id) : peekId('mnt')}</span>
       </div>
@@ -3305,10 +3481,7 @@
 
         <div class="field span-2">
           <label>Assign To (Employee)</label>
-          <select name="employeeId">
-            <option value="">Unassigned</option>
-            ${empOptions}
-          </select>
+          ${pickerFieldHTML('mntEmp', 'employeeId', 'Type employee name to search (optional)...', m?.employeeId || '', pickerLabelById(pickerOptionsEmployee, m?.employeeId || ''))}
         </div>
 
         <div class="field span-2">
@@ -3327,6 +3500,7 @@
         <button class="btn btn-primary" data-act="save">${m ? 'Save Changes' : 'Create Task'}</button>`,
       onOpen: (wrap, close) => {
         const form = $('#mntForm', wrap);
+        wirePicker(wrap, { base: 'mntEmp', options: pickerOptionsEmployee });
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
           if (!form.reportValidity()) return;
@@ -3571,6 +3745,8 @@
       )
       .join('');
 
+    $('#addLeaveBtn').style.display = db.leaves.length ? '' : 'none';
+
     const q = leaveSearch.toLowerCase();
     let list = [...db.leaves].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     if (leaveFilterStatus !== 'all') list = list.filter((l) => l.status === leaveFilterStatus);
@@ -3667,9 +3843,6 @@
     }
 
     const preEmp = l?.employeeId || prefill.employeeId || '';
-    const empOptions = db.employees
-      .map((e) => `<option value="${esc(e.id)}" ${preEmp === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.id)}</option>`)
-      .join('');
     const types = ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Unpaid Leave', 'Maternity Leave', 'Paternity Leave', 'Other'];
 
     const body = `
@@ -3687,10 +3860,7 @@
       <form id="lvForm" class="form-grid" autocomplete="off">
         <div class="field span-2">
           <label>Employee <span class="req">*</span></label>
-          <select name="employeeId" required>
-            <option value="">Select employee</option>
-            ${empOptions}
-          </select>
+          ${pickerFieldHTML('lvEmp', 'employeeId', 'Type employee name to search...', preEmp, pickerLabelById(pickerOptionsEmployee, preEmp))}
         </div>
 
         <div class="field">
@@ -3731,10 +3901,15 @@
         <button class="btn btn-primary" data-act="save">${l ? 'Save Changes' : 'Submit Request'}</button>`,
       onOpen: (wrap, close) => {
         const form = $('#lvForm', wrap);
+        wirePicker(wrap, { base: 'lvEmp', options: pickerOptionsEmployee });
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
           if (!form.reportValidity()) return;
           const data = Object.fromEntries(new FormData(form).entries());
+          if (!data.employeeId) {
+            toast('Please select an employee from the suggestions.', 'error');
+            return;
+          }
           if (data.toDate < data.fromDate) {
             toast('To date must be on or after from date.', 'error');
             return;
@@ -3811,6 +3986,8 @@
       </div>`
       )
       .join('');
+
+    $('#addSalaryBtn').style.display = db.salaries.length ? '' : 'none';
 
     const q = salarySearch.toLowerCase();
     let list = [...db.salaries].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -3907,9 +4084,6 @@
       return;
     }
 
-    const empOptions = db.employees
-      .map((e) => `<option value="${esc(e.id)}" ${sal?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.id)}</option>`)
-      .join('');
     const methods = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
 
     const net = num(sal?.basic) + num(sal?.bonus) - num(sal?.deductions);
@@ -3929,10 +4103,7 @@
       <form id="salForm" class="form-grid" autocomplete="off">
         <div class="field span-2">
           <label>Employee <span class="req">*</span></label>
-          <select name="employeeId" required>
-            <option value="">Select employee</option>
-            ${empOptions}
-          </select>
+          ${pickerFieldHTML('salEmp', 'employeeId', 'Type employee name to search...', sal?.employeeId || '', pickerLabelById(pickerOptionsEmployee, sal?.employeeId || ''))}
         </div>
 
         <div class="field">
@@ -3987,10 +4158,23 @@
         <button class="btn btn-primary" data-act="save">${sal ? 'Save Changes' : 'Save Salary'}</button>`,
       onOpen: (wrap, close) => {
         const form = $('#salForm', wrap);
+        wirePicker(wrap, {
+          base: 'salEmp',
+          options: pickerOptionsEmployee,
+          onChoose: (o) => {
+            if (sal) return;
+            const e = db.employees.find((x) => x.id === o.id);
+            if (e && e.salary && !form.basic.value) form.basic.value = e.salary;
+          },
+        });
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
           if (!form.reportValidity()) return;
           const data = Object.fromEntries(new FormData(form).entries());
+          if (!data.employeeId) {
+            toast('Please select an employee from the suggestions.', 'error');
+            return;
+          }
           data.net = num(data.basic) + num(data.bonus) - num(data.deductions);
           if (data.status === 'Paid' && !data.paidDate) data.paidDate = todayISO();
 
@@ -4097,9 +4281,9 @@
     // Header
     $('#panelDashHead').innerHTML = `
       ${avatarHTML(emp, 'avatar-lg')}
-      <div class="edh-info">
+        <div class="edh-info">
         <div class="edh-name">${esc(emp.fullName)}</div>
-        <div class="edh-meta">${esc(emp.staffRole || 'Employee')} · ${esc(emp.id)} · ${esc(emp.shift || 'No shift')}</div>
+        <div class="edh-meta">${esc(emp.staffRole || 'Employee')} · ${esc(emp.shift || 'No shift')}</div>
         <div class="edh-badges">
           ${empStatusBadge(emp.employmentStatus)}
           ${isTodayBirthday(emp.dob) ? '<span class="badge badge-amber">🎂 Birthday today</span>' : ''}
@@ -4492,11 +4676,10 @@
         <div class="detail-item"><div class="label">Staff Role</div><div class="value">${esc(emp.staffRole || '·')}</div></div>
         <div class="detail-item"><div class="label">Specialties / Services</div><div class="value">${esc(emp.specialties || '·')}</div></div>
         <div class="detail-item"><div class="label">Experience (Years)</div><div class="value">${esc(emp.experienceYears || '·')}</div></div>
-        <div class="detail-item"><div class="label">Commission Rate</div><div class="value">${emp.commissionRate ? esc(emp.commissionRate) + '%' : '·'}</div></div>
+        <div class="detail-item"><div class="label">Monthly Salary</div><div class="value">${emp.salary ? fmtMoney(emp.salary) : '·'}</div></div>
         <div class="detail-item"><div class="label">Shift</div><div class="value">${esc(emp.shift || '·')}</div></div>
         <div class="detail-item"><div class="label">Joining Date</div><div class="value">${fmtDate(emp.joiningDate)}</div></div>
         <div class="detail-item"><div class="label">Employment Status</div><div class="value">${empStatusBadge(emp.employmentStatus)}</div></div>
-        <div class="detail-item"><div class="label">Employee ID</div><div class="value">${esc(emp.id)}</div></div>
         <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(emp.notes || '·')}</div></div>
       </div>`;
   }
@@ -4530,7 +4713,7 @@
         ${avatarHTML(e, 'avatar-lg')}
         <div class="emp-pick-info">
           <h4>${esc(e.fullName)}</h4>
-          <p>${esc(e.staffRole || 'Employee')} · ${esc(e.shift || e.id)}</p>
+          <p>${esc(e.staffRole || 'Employee')}${e.shift ? ' · ' + esc(e.shift) : ''}</p>
           ${empStatusBadge(e.employmentStatus)}
         </div>
         <span class="emp-pick-arrow">
