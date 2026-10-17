@@ -15,14 +15,14 @@
     appointments: [],
     payments: [],
     expenses: [],
-    maintenance: [],
     attendance: [],
     leaves: [],
     salaries: [],
-    counters: { emp: 0, cus: 0, visit: 0, svc: 0, apt: 0, pay: 0, exp: 0, mnt: 0, att: 0, lv: 0, sal: 0 },
+    timetables: [],
+    counters: { emp: 0, cus: 0, visit: 0, svc: 0, apt: 0, pay: 0, exp: 0, att: 0, lv: 0, sal: 0, tmt: 0 },
   };
 
-  const ID_PREFIX = { emp: 'EMP', cus: 'CUS', visit: 'VIS', svc: 'SVC', apt: 'APT', pay: 'PAY', exp: 'EXP', mnt: 'MNT', att: 'ATT', lv: 'LV', sal: 'SAL' };
+  const ID_PREFIX = { emp: 'EMP', cus: 'CUS', visit: 'VIS', svc: 'SVC', apt: 'APT', pay: 'PAY', exp: 'EXP', att: 'ATT', lv: 'LV', sal: 'SAL', tmt: 'TMT' };
 
   let db = load();
 
@@ -54,7 +54,7 @@
       }
       if (!Array.isArray(merged.visits)) merged.visits = [];
       delete merged.leads;
-      ['appointments', 'payments', 'expenses', 'maintenance', 'attendance', 'leaves', 'salaries'].forEach((k) => {
+      ['appointments', 'payments', 'expenses', 'attendance', 'leaves', 'salaries', 'timetables'].forEach((k) => {
         if (!Array.isArray(merged[k])) merged[k] = [];
       });
       return merged;
@@ -582,7 +582,6 @@
     appointments: { title: 'Appointments', sub: 'Schedule appointments with existing customers' },
     payments: { title: 'Payments', sub: 'Track every payment — cash & online' },
     expenses: { title: 'Expenses', sub: 'Record and monitor business expenses' },
-    maintenance: { title: 'Maintenance', sub: 'Equipment servicing, repairs & cleaning tasks' },
     birthdays: { title: 'Birthdays', sub: 'Upcoming birthdays · employees & customers' },
     services: { title: 'Services', sub: 'Services offered by your business' },
     attendance: { title: 'Attendance', sub: 'Mark and review daily employee attendance' },
@@ -629,9 +628,6 @@
         break;
       case 'expenses':
         renderExpenses();
-        break;
-      case 'maintenance':
-        renderMaintenance();
         break;
       case 'birthdays':
         renderBirthdays();
@@ -1140,7 +1136,7 @@
       db.attendance.filter((a) => a.employeeId === id).length +
       db.leaves.filter((l) => l.employeeId === id).length +
       db.salaries.filter((s) => s.employeeId === id).length +
-      db.maintenance.filter((m) => m.employeeId === id).length;
+      db.timetables.filter((t) => t.employeeId === id).length;
     const ok = await confirmDialog({
       title: 'Delete Employee',
       message: `Are you sure you want to delete <strong>${esc(e.fullName)}</strong> (${esc(e.id)})?${related ? ` This will also remove <strong>${related}</strong> related record${related === 1 ? '' : 's'} (visits, attendance, leaves, salary).` : ''} This action cannot be undone.`,
@@ -1151,7 +1147,7 @@
     db.attendance = db.attendance.filter((a) => a.employeeId !== id);
     db.leaves = db.leaves.filter((l) => l.employeeId !== id);
     db.salaries = db.salaries.filter((s) => s.employeeId !== id);
-    db.maintenance = db.maintenance.filter((m) => m.employeeId !== id);
+    db.timetables = db.timetables.filter((t) => t.employeeId !== id);
     save();
     renderAll();
     toast('Employee deleted');
@@ -2165,7 +2161,7 @@
         </td>
         <td data-label="Service">
           <strong>${esc(a.serviceName || '·')}</strong>
-          <div class="person-meta">${a.price != null && a.price !== '' ? fmtMoney(a.price) : '·'}</div>
+          <div class="person-meta">${a.price != null && a.price !== '' ? fmtMoney(a.price) : '·'}${num(a.discount) > 0 ? ` · <span style="color:var(--green)">−${fmtMoney(a.discount)} discount</span>` : ''}</div>
         </td>
         <td data-label="Assigned To">${esc(emp?.fullName || '·')}</td>
         <td data-label="Date &amp; Time">${fmtDate(a.date)} · ${esc(a.time || '·')}</td>
@@ -2257,6 +2253,11 @@
           <input type="hidden" name="serviceId" id="aptServiceId" value="${esc(apt?.serviceId || '')}" />
         </div>
         <div class="field">
+          <label>Discount (₹)</label>
+          <input type="number" name="discount" id="aptDiscount" min="0" step="0.01" placeholder="e.g. 100" value="${esc(apt?.discount ?? '')}" />
+        </div>
+
+        <div class="field span-2">
           <label>Service Price (auto-filled)</label>
           <div class="auto-price-box empty" id="aptPriceBox">Select a service to auto-fill price</div>
           <input type="hidden" name="price" id="aptPrice" value="${esc(apt?.price ?? '')}" />
@@ -2306,11 +2307,33 @@
         const svcIdInput = $('#aptServiceId', wrap);
         const priceBox = $('#aptPriceBox', wrap);
         const priceInput = $('#aptPrice', wrap);
+        const discountInput = $('#aptDiscount', wrap);
         const saveBtn = wrap.querySelector('[data-act="save"]');
 
         let saving = false;
+        let basePrice = null;
 
         wirePicker(wrap, { base: 'aptEmp', options: pickerOptionsEmployee });
+
+        function updatePriceBox() {
+          const disc = num(discountInput.value);
+          if (basePrice == null || basePrice === '') {
+            priceBox.classList.add('empty');
+            priceBox.textContent = 'Select a service to auto-fill price';
+            priceInput.value = '';
+            return;
+          }
+          const base = num(basePrice);
+          const final = Math.max(base - disc, 0);
+          priceInput.value = String(final);
+          if (disc > 0) {
+            priceBox.classList.remove('empty');
+            priceBox.innerHTML = `${fmtMoney(final)} <span class="price-unit">(${fmtMoney(base)} − ${fmtMoney(disc)} discount)</span>`;
+          } else {
+            priceBox.classList.remove('empty');
+            priceBox.innerHTML = `${fmtMoney(base)} <span class="price-unit">/ ${esc(db.services.find((s) => s.id === svcIdInput.value)?.unit || 'service')}</span>`;
+          }
+        }
 
         function selectCustomer(cus) {
           custIdInput.value = cus.id;
@@ -2347,23 +2370,19 @@
         function selectService(svc) {
           svcIdInput.value = svc.id;
           svcInput.value = svc.name || '';
-          priceInput.value = svc.price != null ? svc.price : '';
-          if (svc.price != null && svc.price !== '') {
-            priceBox.classList.remove('empty');
-            priceBox.innerHTML = `${fmtMoney(svc.price)} <span class="price-unit">/ ${esc(svc.unit || 'service')}</span>`;
-          } else {
-            priceBox.classList.add('empty');
-            priceBox.textContent = 'No price set for this service';
-          }
+          basePrice = svc.price != null && svc.price !== '' ? svc.price : null;
+          updatePriceBox();
         }
 
         function clearServiceSelection() {
-          if (!svcIdInput.value) return;
+          if (!svcIdInput.value && !basePrice) return;
           svcIdInput.value = '';
-          priceInput.value = '';
-          priceBox.classList.add('empty');
-          priceBox.textContent = 'Select a service to auto-fill price';
+          basePrice = null;
+          discountInput.value = '';
+          updatePriceBox();
         }
+
+        discountInput.addEventListener('input', updatePriceBox);
 
         setupAutocomplete({
           input: custInput,
@@ -2422,10 +2441,11 @@
           const svc = db.services.find((s) => s.id === apt.serviceId);
           if (svc) selectService(svc);
           else {
-            priceBox.classList.remove('empty');
-            priceBox.innerHTML = `${apt.price != null && apt.price !== '' ? fmtMoney(apt.price) : '·'} <span class="price-unit">saved rate</span>`;
+            basePrice = apt.price != null ? num(apt.price) + num(apt.discount) : null;
+            updatePriceBox();
             svcInput.value = apt.serviceName || '';
           }
+          if (apt.discount) updatePriceBox();
         }
 
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
@@ -2474,9 +2494,11 @@
             return;
           }
 
-          // Always store the latest service name & price from the Services section
+          // Always store the latest service name & apply discount to the latest price
           data.serviceName = svc.name;
-          data.price = svc.price != null && svc.price !== '' ? svc.price : '';
+          const latestBase = svc.price != null && svc.price !== '' ? num(svc.price) : 0;
+          data.discount = num(data.discount);
+          data.price = Math.max(latestBase - data.discount, 0);
 
           saving = true;
           saveBtn.disabled = true;
@@ -2524,7 +2546,8 @@
         <div class="detail-item"><div class="label">Date</div><div class="value">${fmtDate(a.date)}</div></div>
         <div class="detail-item"><div class="label">Time</div><div class="value">${esc(a.time || '·')}</div></div>
         <div class="detail-item"><div class="label">Service</div><div class="value">${esc(a.serviceName || '·')}</div></div>
-        <div class="detail-item"><div class="label">Service Price</div><div class="value">${a.price != null && a.price !== '' ? fmtMoney(a.price) : '·'}</div></div>
+        <div class="detail-item"><div class="label">Final Price</div><div class="value">${a.price != null && a.price !== '' ? fmtMoney(a.price) : '·'}</div></div>
+        <div class="detail-item"><div class="label">Discount</div><div class="value">${num(a.discount) > 0 ? `<span style="color:var(--green)">−${fmtMoney(a.discount)}</span>` : '·'}</div></div>
         <div class="detail-item"><div class="label">Status</div><div class="value">${appointmentStatusBadge(a.status)}</div></div>
         <div class="detail-item"><div class="label">Notes</div><div class="value">${esc(a.notes || '·')}</div></div>
       </div>
@@ -3313,206 +3336,149 @@
     toast('Expense deleted');
   }
 
-  /* ================= MAINTENANCE ================= */
-  let maintenanceSearch = '';
-  let maintenanceFilterStatus = 'all';
+  /* ================= ATTENDANCE ================= */
+  let attendanceSearch = '';
+  let attendanceDate = todayISO();
 
-  function renderMaintenance() {
-    const icons = {
-      all: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
-      pending: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-      progress: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>',
-      done: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
-      cost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>',
+  /* ---- Employee timetables (admin-defined work timings) ---- */
+  function getTimetable(employeeId) {
+    return db.timetables.find((t) => t.employeeId === employeeId) || null;
+  }
+
+  /* Decide attendance status from a check-in time against the timetable */
+  function attendanceStatusFromTimetable(checkInHHMM, tt) {
+    if (!tt || !tt.checkIn) return 'Present';
+    const toMin = (hhmm) => {
+      const [h, m] = String(hhmm || '').split(':').map(Number);
+      return isNaN(h) ? null : h * 60 + (m || 0);
     };
+    const inMin = toMin(checkInHHMM);
+    const startMin = toMin(tt.checkIn);
+    if (inMin === null || startMin === null) return 'Present';
+    const halfMin = toMin(tt.halfDayTime);
+    if (halfMin !== null && inMin > halfMin) return 'Half Day';
+    if (inMin > startMin + 15) return 'Late';
+    return 'Present';
+  }
 
-    const stats = [
-      { label: 'Total Tasks', value: db.maintenance.length, sub: 'All maintenance records', icon: 'all', accent: 'var(--brand)', bg: 'var(--brand-50)' },
-      { label: 'Pending', value: db.maintenance.filter((m) => m.status === 'Pending').length, sub: 'Awaiting action', icon: 'pending', accent: 'var(--amber)', bg: 'var(--amber-50)' },
-      { label: 'In Progress', value: db.maintenance.filter((m) => m.status === 'In Progress').length, sub: 'Currently being worked on', icon: 'progress', accent: 'var(--sky)', bg: 'var(--sky-50)' },
-      { label: 'Completed', value: db.maintenance.filter((m) => m.status === 'Completed').length, sub: 'Tasks finished', icon: 'done', accent: 'var(--green)', bg: 'var(--green-50)' },
-      { label: 'Total Cost', value: fmtMoney(db.maintenance.reduce((t, m) => t + num(m.cost), 0)), sub: 'Across all tasks', icon: 'cost', accent: 'var(--violet)', bg: 'var(--violet-50)' },
-    ];
-    $('#maintenanceStats').innerHTML = stats
-      .map(
-        (s) => `
-      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
-        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
-        <div class="stat-value">${s.value}</div>
-        <div class="stat-label">${esc(s.label)}</div>
-        <div class="stat-sub">${esc(s.sub)}</div>
-      </div>`
-      )
-      .join('');
+  function renderAttendanceTimetables() {
+    const wrap = $('#attendanceTimetables');
+    const empty = $('#timetableEmpty');
+    const count = $('#timetableCount');
+    if (!wrap) return;
 
-    $('#addMaintenanceBtn').style.display = db.maintenance.length ? '' : 'none';
-
-    const q = maintenanceSearch.toLowerCase();
-    let list = [...db.maintenance].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-    if (maintenanceFilterStatus !== 'all') list = list.filter((m) => m.status === maintenanceFilterStatus);
-    if (q) {
-      list = list.filter(
-        (m) => m.id.toLowerCase().includes(q) || (m.title || '').toLowerCase().includes(q) || (m.asset || '').toLowerCase().includes(q) || (m.category || '').toLowerCase().includes(q)
-      );
-    }
-
-    const tbody = $('#maintenanceTable tbody');
-    const empty = $('#maintenanceEmpty');
-    const tableWrap = $('#maintenanceTable').closest('.table-wrap');
-
-    if (!db.maintenance.length) {
-      tableWrap.style.display = 'none';
-      empty.style.display = 'block';
-      empty.querySelector('.empty-title').textContent = 'No maintenance tasks';
-      empty.querySelector('.empty-text').textContent = 'Track equipment servicing, repairs and cleaning schedules.';
+    if (!db.employees.length) {
+      wrap.innerHTML = '';
+      if (empty) empty.style.display = 'block';
+      if (count) count.textContent = '0 set';
       return;
     }
-    tableWrap.style.display = '';
-    empty.style.display = list.length ? 'none' : 'block';
-    if (!list.length) {
-      empty.querySelector('.empty-title').textContent = 'No matching tasks';
-      empty.querySelector('.empty-text').textContent = 'Try a different filter or search.';
-      tbody.innerHTML = '';
-      return;
-    }
+    if (count) count.textContent = `${db.timetables.length} set`;
 
-    const prioBadge = (p) => {
-      const map = { Low: 'badge-gray', Medium: 'badge-sky', High: 'badge-amber', Urgent: 'badge-red' };
-      return `<span class="badge ${map[p] || 'badge-gray'}">${esc(p || '·')}</span>`;
-    };
-
-    tbody.innerHTML = list
-      .map((m) => {
-        const emp = db.employees.find((e) => e.id === m.employeeId);
+    wrap.innerHTML = db.employees
+      .map((e) => {
+        const tt = getTimetable(e.id);
         return `
-      <tr data-id="${esc(m.id)}">
-        <td data-label="Task ID"><strong style="color:var(--brand)">${esc(m.id)}</strong></td>
-        <td data-label="Task">${esc(m.title || '·')}</td>
-        <td data-label="Asset / Area">${esc(m.asset || '·')}</td>
-        <td data-label="Priority">${prioBadge(m.priority)}</td>
-        <td data-label="Status">${maintenanceStatusBadge(m.status)}</td>
-        <td data-label="Scheduled">${fmtDate(m.scheduledDate)}</td>
-        <td data-label="Cost">${m.cost ? fmtMoney(m.cost) : '·'}</td>
-        <td data-label="Assigned To">${esc(emp?.fullName || '·')}</td>
-        <td class="col-actions">
-          <div class="row-actions">
-            <button class="icon-action" data-act="edit" title="Edit">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            </button>
-            <button class="icon-action danger" data-act="delete" title="Delete">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-            </button>
-          </div>
-        </td>
-      </tr>`;
+      <div class="emp-list-item">
+        <div class="eli-info">
+          <div class="eli-t">${esc(e.fullName)}</div>
+          <div class="eli-s">${
+            tt
+              ? `${esc(tt.checkIn || '·')} – ${esc(tt.checkOut || '·')} · ${esc(tt.workHours || '·')}h/day · Half day after ${esc(tt.halfDayTime || '·')}`
+              : 'No timetable set'
+          }</div>
+        </div>
+        <div class="eli-right">
+          ${tt ? '<span class="badge badge-green">Set</span>' : '<span class="badge badge-gray">Not set</span>'}
+          <button class="btn btn-ghost btn-sm" data-tt-edit="${esc(e.id)}">${tt ? 'Edit' : 'Set Timetable'}</button>
+        </div>
+      </div>`;
       })
       .join('');
+    if (empty) empty.style.display = 'none';
 
-    $$('#maintenanceTable [data-act]').forEach((btn) => {
-      btn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        const id = btn.closest('tr').dataset.id;
-        if (btn.dataset.act === 'edit') openMaintenanceForm(id);
-        else if (btn.dataset.act === 'delete') deleteMaintenance(id);
-      });
+    $$('#attendanceTimetables [data-tt-edit]').forEach((btn) => {
+      btn.addEventListener('click', () => openTimetableForm(btn.dataset.ttEdit));
     });
   }
 
-  function maintenanceStatusBadge(status) {
-    const map = { Pending: 'badge-amber', 'In Progress': 'badge-sky', Completed: 'badge-green' };
-    return `<span class="badge ${map[status] || 'badge-gray'}">${esc(status || '·')}</span>`;
-  }
-
-  function openMaintenanceForm(id = null) {
-    const m = id ? db.maintenance.find((x) => x.id === id) : null;
-    const categories = ['Equipment', 'Facility', 'Cleaning', 'Repair', 'Safety', 'Other'];
-    const priorities = ['Low', 'Medium', 'High', 'Urgent'];
+  function openTimetableForm(employeeId) {
+    const emp = db.employees.find((e) => e.id === employeeId);
+    if (!emp) return;
+    const tt = getTimetable(employeeId);
 
     const body = `
       <div class="modal-hero">
-        <div class="modal-hero-icon" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed 60%,#5b21b6);box-shadow:0 8px 18px rgba(124,58,237,0.35)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        <div class="modal-hero-icon" style="background:linear-gradient(135deg,#38bdf8,#0b7fc9 60%,#075985);box-shadow:0 8px 18px rgba(11,127,201,0.35)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <div class="modal-hero-info">
-          <h3>${m ? 'Edit Task' : 'New Maintenance Task'}</h3>
-          <p>${m ? 'Update the task details' : 'Schedule a repair, cleaning or servicing task'}</p>
+          <h3>${tt ? 'Edit Timetable' : 'Set Timetable'}</h3>
+          <p>${esc(emp.fullName)} · attendance marks automatically from these timings</p>
         </div>
-        <span class="modal-hero-id">${m ? esc(m.id) : peekId('mnt')}</span>
       </div>
 
-      <form id="mntForm" class="form-grid" autocomplete="off">
-        <div class="field span-2">
-          <label>Task Title <span class="req">*</span></label>
-          <input name="title" required placeholder="e.g. Service hair dryer machine" value="${esc(m?.title || '')}" />
+      <form id="ttForm" class="form-grid" autocomplete="off">
+        <div class="field">
+          <label>Check-in Time <span class="req">*</span></label>
+          <input type="time" name="checkIn" required value="${esc(tt?.checkIn || '09:00')}" />
+        </div>
+        <div class="field">
+          <label>Check-out Time <span class="req">*</span></label>
+          <input type="time" name="checkOut" required value="${esc(tt?.checkOut || '18:00')}" />
         </div>
 
         <div class="field">
-          <label>Asset / Area <span class="req">*</span></label>
-          <input name="asset" required placeholder="e.g. Hair Dryer #2 / Wash Station" value="${esc(m?.asset || '')}" />
+          <label>Work Hours / Day <span class="req">*</span></label>
+          <input type="number" name="workHours" min="1" max="24" step="0.5" required placeholder="e.g. 8" value="${esc(tt?.workHours || '8')}" />
         </div>
         <div class="field">
-          <label>Category <span class="req">*</span></label>
-          <select name="category" required>
-            ${categories.map((c) => `<option ${(m?.category || 'Equipment') === c ? 'selected' : ''}>${c}</option>`).join('')}
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Priority <span class="req">*</span></label>
-          <select name="priority" required>
-            ${priorities.map((p) => `<option ${(m?.priority || 'Medium') === p ? 'selected' : ''}>${p}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field">
-          <label>Status <span class="req">*</span></label>
-          <select name="status" required>
-            ${['Pending', 'In Progress', 'Completed'].map((s) => `<option ${(m?.status || 'Pending') === s ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Scheduled Date <span class="req">*</span></label>
-          <input type="date" name="scheduledDate" required value="${esc(m?.scheduledDate || todayISO())}" />
-        </div>
-        <div class="field">
-          <label>Cost (₹)</label>
-          <input type="number" name="cost" min="0" step="0.01" placeholder="e.g. 800" value="${esc(m?.cost || '')}" />
+          <label>Half Day After (time) <span class="req">*</span></label>
+          <input type="time" name="halfDayTime" required value="${esc(tt?.halfDayTime || '14:00')}" />
+          <p class="hint">Check-ins after this time are marked Half Day</p>
         </div>
 
         <div class="field span-2">
-          <label>Assign To (Employee)</label>
-          ${pickerFieldHTML('mntEmp', 'employeeId', 'Type employee name to search (optional)...', m?.employeeId || '', pickerLabelById(pickerOptionsEmployee, m?.employeeId || ''))}
-        </div>
-
-        <div class="field span-2">
-          <label>Notes</label>
-          <textarea name="notes" placeholder="Additional instructions...">${esc(m?.notes || '')}</textarea>
+          <div class="auto-price-box empty">Check-in later than start + 15 min → marked <strong>Late</strong> automatically</div>
         </div>
       </form>`;
 
     openModal({
-      title: m ? 'Edit Task' : 'New Maintenance Task',
-      subtitle: m ? `Updating ${m.id}` : 'Maintenance scheduling',
+      title: tt ? 'Edit Timetable' : 'Set Timetable',
+      subtitle: emp.fullName,
       size: 'lg',
       body,
       footer: `
         <button class="btn btn-ghost" data-act="cancel">Cancel</button>
-        <button class="btn btn-primary" data-act="save">${m ? 'Save Changes' : 'Create Task'}</button>`,
+        ${tt ? '<button class="btn btn-danger-soft" data-act="remove">Remove</button>' : ''}
+        <button class="btn btn-primary" data-act="save">${tt ? 'Save Changes' : 'Set Timetable'}</button>`,
       onOpen: (wrap, close) => {
-        const form = $('#mntForm', wrap);
-        wirePicker(wrap, { base: 'mntEmp', options: pickerOptionsEmployee });
+        const form = $('#ttForm', wrap);
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
+        const removeBtn = wrap.querySelector('[data-act="remove"]');
+        if (removeBtn) {
+          removeBtn.addEventListener('click', () => {
+            db.timetables = db.timetables.filter((t) => t.employeeId !== employeeId);
+            save();
+            close();
+            renderAll();
+            toast('Timetable removed');
+          });
+        }
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
           if (!form.reportValidity()) return;
           const data = Object.fromEntries(new FormData(form).entries());
-          if (m) {
-            Object.assign(m, data);
-            toast('Task updated successfully');
+          const existing = getTimetable(employeeId);
+          if (existing) {
+            Object.assign(existing, data);
+            existing.updatedAt = new Date().toISOString();
+            toast('Timetable updated');
           } else {
-            data.id = nextId('mnt');
+            data.id = nextId('tmt');
+            data.employeeId = employeeId;
             data.createdAt = new Date().toISOString();
-            db.maintenance.push(data);
-            toast(`Task created · ${data.id}`);
+            db.timetables.push(data);
+            toast(`Timetable set for ${emp.fullName}`);
           }
           save();
           close();
@@ -3522,23 +3488,16 @@
     });
   }
 
-  async function deleteMaintenance(id) {
-    const m = db.maintenance.find((x) => x.id === id);
-    if (!m) return;
-    const ok = await confirmDialog({
-      title: 'Delete Task',
-      message: `Are you sure you want to delete <strong>${esc(m.title || m.id)}</strong>? This action cannot be undone.`,
-    });
-    if (!ok) return;
-    db.maintenance = db.maintenance.filter((x) => x.id !== id);
-    save();
-    renderAll();
-    toast('Task deleted');
+  function clearAttendanceFilters() {
+    attendanceSearch = '';
+    attendanceDate = todayISO();
+    const searchInput = $('#attendanceSearch');
+    const dateInput = $('#attendanceDate');
+    if (searchInput) searchInput.value = '';
+    if (dateInput) dateInput.value = attendanceDate;
+    renderAttendance();
+    toast('Filters cleared');
   }
-
-  /* ================= ATTENDANCE ================= */
-  let attendanceSearch = '';
-  let attendanceDate = todayISO();
 
   function attendanceFor(employeeId, date) {
     return db.attendance.find((a) => a.employeeId === employeeId && a.date === date);
@@ -3566,6 +3525,7 @@
 
   function renderAttendance() {
     const date = attendanceDate;
+    renderAttendanceTimetables();
     const dayRecs = db.attendance.filter((a) => a.date === date);
     const icons = {
       present: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
@@ -3577,10 +3537,9 @@
 
     const stats = [
       { label: 'Present', value: dayRecs.filter((a) => a.status === 'Present').length, sub: fmtDate(date), icon: 'present', accent: 'var(--green)', bg: 'var(--green-50)' },
-      { label: 'Late', value: dayRecs.filter((a) => a.status === 'Late').length, sub: fmtDate(date), icon: 'late', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+      { label: 'Late Mark', value: dayRecs.filter((a) => a.status === 'Late').length, sub: fmtDate(date), icon: 'late', accent: 'var(--amber)', bg: 'var(--amber-50)' },
       { label: 'Absent', value: dayRecs.filter((a) => a.status === 'Absent').length, sub: fmtDate(date), icon: 'absent', accent: 'var(--red)', bg: 'var(--red-50)' },
       { label: 'Half Day', value: dayRecs.filter((a) => a.status === 'Half Day').length, sub: fmtDate(date), icon: 'half', accent: 'var(--sky)', bg: 'var(--sky-50)' },
-      { label: 'Not Marked', value: Math.max(db.employees.length - dayRecs.length, 0), sub: `${db.employees.length} employees`, icon: 'total', accent: 'var(--text-2)', bg: '#f0f1f4' },
     ];
     $('#attendanceStats').innerHTML = stats
       .map(
@@ -3744,8 +3703,6 @@
       </div>`
       )
       .join('');
-
-    $('#addLeaveBtn').style.display = db.leaves.length ? '' : 'none';
 
     const q = leaveSearch.toLowerCase();
     let list = [...db.leaves].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -4110,12 +4067,7 @@
           <label>Salary Month <span class="req">*</span></label>
           <input type="month" name="month" required value="${esc(sal?.month || monthISO())}" />
         </div>
-        <div class="field">
-          <label>Status <span class="req">*</span></label>
-          <select name="status" required>
-            ${['Pending', 'Paid'].map((s) => `<option ${(sal?.status || 'Pending') === s ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
-        </div>
+        <div class="field"></div>
 
         <div class="field">
           <label>Basic Salary (₹) <span class="req">*</span></label>
@@ -4146,6 +4098,14 @@
           <label>Notes</label>
           <textarea name="notes" placeholder="Any additional notes...">${esc(sal?.notes || '')}</textarea>
         </div>
+
+        <div class="field">
+          <label>Status <span class="req">*</span></label>
+          <select name="status" required>
+            ${['Pending', 'Paid'].map((s) => `<option ${(sal?.status || 'Pending') === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"></div>
       </form>`;
 
     openModal({
@@ -4243,18 +4203,20 @@
     }
     const now = new Date();
     const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const tt = getTimetable(empId);
+    const status = attendanceStatusFromTimetable(hhmm, tt);
     db.attendance.push({
       id: nextId('att'),
       employeeId: empId,
       date: t,
-      status: 'Present',
+      status,
       checkIn: hhmm,
-      notes: 'Self check-in from employee dashboard',
+      notes: tt ? 'Auto-marked from timetable' : 'Self check-in from employee dashboard',
       createdAt: now.toISOString(),
     });
     save();
     renderAll();
-    toast(`Checked in at ${hhmm}`);
+    toast(status === 'Present' ? `Checked in at ${hhmm}` : `Checked in at ${hhmm} · marked ${status}`);
   }
 
   function attStatusBadgeLocal(status) {
@@ -4773,9 +4735,7 @@
       serviceEmpty: () => openServiceForm(),
       paymentEmpty: () => openPaymentForm(),
       expenseEmpty: () => openExpenseForm(),
-      maintenanceEmpty: () => openMaintenanceForm(),
       attendanceEmpty: () => openEmployeeForm(),
-      leaveEmpty: () => openLeaveForm(),
       salaryEmpty: () => openSalaryForm(),
     };
     $('#content').addEventListener('click', (e) => {
@@ -4920,21 +4880,6 @@
       });
     });
 
-    // Maintenance
-    $('#addMaintenanceBtn').addEventListener('click', () => openMaintenanceForm());
-    $('#maintenanceSearch').addEventListener('input', (e) => {
-      maintenanceSearch = e.target.value;
-      renderMaintenance();
-    });
-    $$('#maintenanceFilters .chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        $$('#maintenanceFilters .chip').forEach((c) => c.classList.remove('active'));
-        chip.classList.add('active');
-        maintenanceFilterStatus = chip.dataset.status;
-        renderMaintenance();
-      });
-    });
-
     // Attendance
     $('#attendanceDate').value = attendanceDate;
     $('#attendanceDate').addEventListener('change', (e) => {
@@ -4946,9 +4891,9 @@
       renderAttendance();
     });
     $('#markAllPresentBtn').addEventListener('click', markAllPresent);
+    $('#clearAttendanceFiltersBtn').addEventListener('click', clearAttendanceFilters);
 
     // Leaves
-    $('#addLeaveBtn').addEventListener('click', () => openLeaveForm());
     $('#leaveSearch').addEventListener('input', (e) => {
       leaveSearch = e.target.value;
       renderLeaves();
