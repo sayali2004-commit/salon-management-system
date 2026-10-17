@@ -384,6 +384,7 @@
   /* ---------------- Navigation ---------------- */
   const SECTIONS = {
     dashboard: { title: 'Dashboard', sub: 'Overview of your management system' },
+    'employee-panel': { title: 'Employee Panel', sub: 'Personal dashboard for each employee' },
     employees: { title: 'Employees', sub: 'Create and manage your employee directory' },
     customers: { title: 'Customers', sub: 'Manage your customer records' },
     visits: { title: 'Visits', sub: 'Customer visits with assigned staff & payments' },
@@ -414,6 +415,9 @@
     switch (section) {
       case 'dashboard':
         renderDashboard();
+        break;
+      case 'employee-panel':
+        renderEmployeePanel();
         break;
       case 'employees':
         renderEmployees();
@@ -3470,15 +3474,16 @@
     toast(`Leave ${status.toLowerCase()}`);
   }
 
-  function openLeaveForm(id = null) {
+  function openLeaveForm(id = null, prefill = {}) {
     const l = id ? db.leaves.find((x) => x.id === id) : null;
     if (!db.employees.length) {
       toast('Please add at least one employee first.', 'error');
       return;
     }
 
+    const preEmp = l?.employeeId || prefill.employeeId || '';
     const empOptions = db.employees
-      .map((e) => `<option value="${esc(e.id)}" ${l?.employeeId === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.id)}</option>`)
+      .map((e) => `<option value="${esc(e.id)}" ${preEmp === e.id ? 'selected' : ''}>${esc(e.fullName)} · ${esc(e.staffRole || e.id)}</option>`)
       .join('');
     const types = ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Unpaid Leave', 'Maternity Leave', 'Paternity Leave', 'Other'];
 
@@ -3836,6 +3841,243 @@
     toast('Salary record deleted');
   }
 
+  /* ================= EMPLOYEE PANEL ================= */
+  const PANEL_EMP_KEY = 'salon_panel_emp';
+  let panelEmployeeSearch = '';
+  let panelEmployeeId = '';
+
+  try {
+    panelEmployeeId = localStorage.getItem(PANEL_EMP_KEY) || '';
+  } catch {
+    panelEmployeeId = '';
+  }
+
+  function setPanelEmployee(id) {
+    panelEmployeeId = id || '';
+    try {
+      if (id) localStorage.setItem(PANEL_EMP_KEY, id);
+      else localStorage.removeItem(PANEL_EMP_KEY);
+    } catch {
+      /* ignore storage errors */
+    }
+    renderEmployeePanel();
+  }
+
+  function renderEmployeePanel() {
+    const emp = db.employees.find((e) => e.id === panelEmployeeId);
+    const pickerWrap = $('#panelPickerWrap');
+    const view = $('#panelView');
+
+    if (!emp) {
+      if (panelEmployeeId) setPanelEmployee('');
+      pickerWrap.hidden = false;
+      view.hidden = true;
+      renderEmployeePicker();
+      return;
+    }
+
+    pickerWrap.hidden = true;
+    view.hidden = false;
+
+    const today = todayISO();
+    const thisMonth = monthISO();
+
+    /* ---- Hero ---- */
+    $('#panelHero').innerHTML = `
+      <div class="profile-hero">
+        ${avatarHTML(emp, 'avatar-xl')}
+        <div class="profile-hero-info">
+          <h2>${esc(emp.fullName)}</h2>
+          <div class="role">${esc(emp.staffRole || 'Employee')} · ${esc(emp.specialties || emp.id)}</div>
+          <div class="badges">
+            <span class="badge badge-brand">${esc(emp.id)}</span>
+            ${empStatusBadge(emp.employmentStatus)}
+            <span class="badge badge-gray">${esc(emp.shift || 'No shift assigned')}</span>
+          </div>
+        </div>
+      </div>`;
+
+    /* ---- Scoped data ---- */
+    const apts = db.appointments.filter((a) => a.employeeId === emp.id);
+    const upcoming = apts
+      .filter((a) => (a.status === 'Scheduled' || a.status === 'Confirmed') && a.date >= today)
+      .sort((a, b) => `${a.date || ''}T${a.time || ''}`.localeCompare(`${b.date || ''}T${b.time || ''}`));
+
+    const attAll = db.attendance.filter((a) => a.employeeId === emp.id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const attMonth = attAll.filter((a) => (a.date || '').slice(0, 7) === thisMonth);
+    const presentDays = attMonth.filter((a) => a.status === 'Present' || a.status === 'Late' || a.status === 'Half Day').length;
+
+    const leaves = db.leaves.filter((l) => l.employeeId === emp.id);
+    const leavesPending = leaves.filter((l) => l.status === 'Pending').length;
+    const leavesApprovedDays = leaves.filter((l) => l.status === 'Approved').reduce((t, l) => t + daysBetween(l.fromDate, l.toDate), 0);
+
+    const salaries = db.salaries.filter((s) => s.employeeId === emp.id);
+    const salaryPaid = salaries.filter((s) => s.status === 'Paid').reduce((t, s) => t + num(s.net), 0);
+
+    const visitsDone = db.visits.filter((v) => v.employeeId === emp.id && v.status === 'Completed').length;
+
+    /* ---- Stats ---- */
+    const icons = {
+      cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+      leave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>',
+      pay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>',
+      visit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+    };
+
+    const stats = [
+      { label: 'Upcoming Appointments', value: upcoming.length, sub: `${apts.length} total appointments`, icon: 'cal', accent: 'var(--brand)', bg: 'var(--brand-50)' },
+      { label: 'Present Days', value: presentDays, sub: `${attMonth.length} days marked · ${fmtMonth(thisMonth)}`, icon: 'check', accent: 'var(--green)', bg: 'var(--green-50)' },
+      { label: 'Leaves', value: leaves.length, sub: leavesPending ? `${leavesPending} pending approval` : `${leavesApprovedDays} approved day(s)`, icon: 'leave', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+      { label: 'Salary Paid', value: fmtMoney(salaryPaid), sub: `${salaries.length} record(s)`, icon: 'pay', accent: 'var(--violet)', bg: 'var(--violet-50)' },
+      { label: 'Visits Completed', value: visitsDone, sub: `${db.visits.filter((v) => v.employeeId === emp.id).length} visits total`, icon: 'visit', accent: 'var(--sky)', bg: 'var(--sky-50)' },
+    ];
+    $('#panelStats').innerHTML = stats
+      .map(
+        (s) => `
+      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-label">${esc(s.label)}</div>
+        <div class="stat-sub">${esc(s.sub)}</div>
+      </div>`
+      )
+      .join('');
+
+    /* ---- Profile details ---- */
+    $('#panelProfile').innerHTML = `
+      <div class="detail-item"><div class="label">Date of Birth</div><div class="value">${fmtDate(emp.dob)}${isTodayBirthday(emp.dob) ? ' · 🎂 Today!' : ''}</div></div>
+      <div class="detail-item"><div class="label">Gender</div><div class="value">${esc(emp.gender || '·')}</div></div>
+      <div class="detail-item"><div class="label">Mobile Number</div><div class="value">${esc(emp.mobile || '·')}</div></div>
+      <div class="detail-item"><div class="label">Staff Role</div><div class="value">${esc(emp.staffRole || '·')}</div></div>
+      <div class="detail-item"><div class="label">Specialties / Services</div><div class="value">${esc(emp.specialties || '·')}</div></div>
+      <div class="detail-item"><div class="label">Experience (Years)</div><div class="value">${esc(emp.experienceYears || '·')}</div></div>
+      <div class="detail-item"><div class="label">Commission Rate</div><div class="value">${emp.commissionRate ? esc(emp.commissionRate) + '%' : '·'}</div></div>
+      <div class="detail-item"><div class="label">Shift</div><div class="value">${esc(emp.shift || '·')}</div></div>
+      <div class="detail-item"><div class="label">Joining Date</div><div class="value">${fmtDate(emp.joiningDate)}</div></div>
+      <div class="detail-item"><div class="label">Employment Status</div><div class="value">${empStatusBadge(emp.employmentStatus)}</div></div>
+      <div class="detail-item span-2"><div class="label">Address</div><div class="value">${esc(emp.address || '·')}</div></div>
+      <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(emp.notes || '·')}</div></div>`;
+
+    /* ---- Upcoming appointments ---- */
+    $('#panelAptBadge').textContent = upcoming.length;
+    $('#panelAppointments').innerHTML = upcoming.length
+      ? upcoming
+          .slice(0, 5)
+          .map((a) => {
+            const cus = db.customers.find((c) => c.id === a.customerId);
+            return `
+          <div class="mini-row">
+            <div class="info">
+              <div class="t">${esc(a.serviceName || 'Salon Appointment')}</div>
+              <div class="s">${esc(cus?.fullName || 'Customer')} · ${fmtDate(a.date)} · ${esc(a.time || '·')}</div>
+            </div>
+            ${appointmentStatusBadge(a.status)}
+          </div>`;
+          })
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No upcoming appointments scheduled.</p></div>`;
+
+    /* ---- Recent attendance ---- */
+    $('#panelAttendance').innerHTML = attAll.length
+      ? attAll
+          .slice(0, 7)
+          .map((a) => {
+            const cls = a.status === 'Present' ? 'badge-green' : a.status === 'Late' ? 'badge-amber' : a.status === 'Absent' ? 'badge-red' : 'badge-sky';
+            return `
+          <div class="mini-row">
+            <div class="info">
+              <div class="t">${fmtDate(a.date)}</div>
+              <div class="s">${a.checkIn ? 'Check-in ' + esc(a.checkIn) : 'No check-in time'}</div>
+            </div>
+            <span class="badge ${cls}">${esc(a.status)}</span>
+          </div>`;
+          })
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No attendance records yet.</p></div>`;
+
+    /* ---- Leaves ---- */
+    $('#panelLeaveBadge').textContent = leaves.length;
+    $('#panelLeaves').innerHTML = leaves.length
+      ? [...leaves]
+          .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+          .slice(0, 5)
+          .map(
+            (l) => `
+          <div class="mini-row">
+            <div class="info">
+              <div class="t">${esc(l.type || 'Leave')}</div>
+              <div class="s">${fmtDate(l.fromDate)} → ${fmtDate(l.toDate)} · ${daysBetween(l.fromDate, l.toDate)} day(s)</div>
+            </div>
+            ${leaveStatusBadge(l.status)}
+          </div>`
+          )
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No leave requests yet.</p></div>`;
+
+    /* ---- Salary ---- */
+    $('#panelSalaryBadge').textContent = salaries.length;
+    $('#panelSalary').innerHTML = salaries.length
+      ? [...salaries]
+          .sort((a, b) => (b.month || '').localeCompare(a.month || ''))
+          .slice(0, 5)
+          .map(
+            (s) => `
+          <div class="mini-row">
+            <div class="info">
+              <div class="t">${fmtMoney(s.net)} · ${esc(fmtMonth(s.month))}</div>
+              <div class="s">Basic ${fmtMoney(s.basic)}${num(s.bonus) ? ' · Bonus +' + fmtMoney(s.bonus) : ''}${num(s.deductions) ? ' · Deductions -' + fmtMoney(s.deductions) : ''}</div>
+            </div>
+            ${salaryStatusBadge(s.status)}
+          </div>`
+          )
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No salary records yet.</p></div>`;
+  }
+
+  function renderEmployeePicker() {
+    const q = panelEmployeeSearch.toLowerCase();
+    const list = db.employees.filter((e) => !q || (e.fullName || '').toLowerCase().includes(q) || (e.staffRole || '').toLowerCase().includes(q) || e.id.toLowerCase().includes(q));
+
+    const grid = $('#panelEmpGrid');
+    const empty = $('#panelPickEmpty');
+    const noMatch = $('#panelPickNoMatch');
+
+    if (!db.employees.length) {
+      grid.innerHTML = '';
+      empty.style.display = 'block';
+      noMatch.style.display = 'none';
+      return;
+    }
+    empty.style.display = 'none';
+    noMatch.style.display = list.length ? 'none' : 'block';
+    if (!list.length) {
+      grid.innerHTML = '';
+      return;
+    }
+
+    grid.innerHTML = list
+      .map(
+        (e) => `
+      <button type="button" class="emp-pick-card ${e.id === panelEmployeeId ? 'selected' : ''}" data-id="${esc(e.id)}">
+        ${avatarHTML(e, 'avatar-lg')}
+        <div class="emp-pick-info">
+          <h4>${esc(e.fullName)}</h4>
+          <p>${esc(e.staffRole || 'Employee')} · ${esc(e.id)}</p>
+          ${empStatusBadge(e.employmentStatus)}
+        </div>
+        <span class="emp-pick-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </span>
+      </button>`
+      )
+      .join('');
+
+    $$('#panelEmpGrid .emp-pick-card').forEach((card) => {
+      card.addEventListener('click', () => setPanelEmployee(card.dataset.id));
+    });
+  }
+
   /* ================= INIT ================= */
   function init() {
     // Today chip
@@ -3881,6 +4123,17 @@
     $('#employeeSearch').addEventListener('input', (e) => {
       employeeSearch = e.target.value;
       renderEmployees();
+    });
+
+    // Employee Panel
+    $('#panelEmpSearch').addEventListener('input', (e) => {
+      panelEmployeeSearch = e.target.value;
+      renderEmployeePicker();
+    });
+    $('#panelBackBtn').addEventListener('click', () => setPanelEmployee(''));
+    $('#panelLeaveBtn').addEventListener('click', () => {
+      if (panelEmployeeId) openLeaveForm(null, { employeeId: panelEmployeeId });
+      else toast('Select an employee first.', 'error');
     });
 
     // Customer
