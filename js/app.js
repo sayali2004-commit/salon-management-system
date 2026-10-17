@@ -496,7 +496,7 @@
   /* ---------------- Navigation ---------------- */
   const SECTIONS = {
     dashboard: { title: 'Dashboard', sub: 'Overview of your management system' },
-    'employee-panel': { title: 'Employee Panel', sub: 'Personal dashboard for each employee' },
+    'employee-panel': { title: 'Employee Dashboard', sub: 'Sign in to view your attendance, leaves, salary & appointments' },
     employees: { title: 'Employees', sub: 'Create and manage your employee directory' },
     customers: { title: 'Customers', sub: 'Manage your customer records' },
     visits: { title: 'Visits', sub: 'Customer visits with assigned staff & payments' },
@@ -4026,10 +4026,12 @@
     toast('Salary record deleted');
   }
 
-  /* ================= EMPLOYEE PANEL ================= */
+﻿  /* ================= EMPLOYEE PANEL (employee-side dashboard) ================= */
   const PANEL_EMP_KEY = 'salon_panel_emp';
   let panelEmployeeSearch = '';
   let panelEmployeeId = '';
+  let panelTab = 'overview';
+  let panelAptFilter = 'today';
 
   try {
     panelEmployeeId = localStorage.getItem(PANEL_EMP_KEY) || '';
@@ -4039,6 +4041,7 @@
 
   function setPanelEmployee(id) {
     panelEmployeeId = id || '';
+    panelTab = 'overview';
     try {
       if (id) localStorage.setItem(PANEL_EMP_KEY, id);
       else localStorage.removeItem(PANEL_EMP_KEY);
@@ -4048,27 +4051,421 @@
     renderEmployeePanel();
   }
 
+  function employeeCheckIn(empId) {
+    const t = todayISO();
+    if (attendanceFor(empId, t)) {
+      toast('You are already checked in today.', 'error');
+      return;
+    }
+    const now = new Date();
+    const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    db.attendance.push({
+      id: nextId('att'),
+      employeeId: empId,
+      date: t,
+      status: 'Present',
+      checkIn: hhmm,
+      notes: 'Self check-in from employee dashboard',
+      createdAt: now.toISOString(),
+    });
+    save();
+    renderAll();
+    toast(`Checked in at ${hhmm}`);
+  }
+
+  function attStatusBadgeLocal(status) {
+    const cls = status === 'Present' ? 'badge-green' : status === 'Late' ? 'badge-amber' : status === 'Absent' ? 'badge-red' : 'badge-sky';
+    return `<span class="badge ${cls}">${esc(status || '·')}</span>`;
+  }
+
   function renderEmployeePanel() {
     const emp = db.employees.find((e) => e.id === panelEmployeeId);
-    const pickerWrap = $('#panelPickerWrap');
-    const view = $('#panelView');
+    const login = $('#panelLogin');
+    const app = $('#panelApp');
 
     if (!emp) {
       if (panelEmployeeId) setPanelEmployee('');
-      pickerWrap.hidden = false;
-      view.hidden = true;
+      login.hidden = false;
+      app.hidden = true;
       renderEmployeePicker();
       return;
     }
 
-    pickerWrap.hidden = true;
-    view.hidden = false;
+    login.hidden = true;
+    app.hidden = false;
 
+    // Header
+    $('#panelDashHead').innerHTML = `
+      ${avatarHTML(emp, 'avatar-lg')}
+      <div class="edh-info">
+        <div class="edh-name">${esc(emp.fullName)}</div>
+        <div class="edh-meta">${esc(emp.staffRole || 'Employee')} · ${esc(emp.id)} · ${esc(emp.shift || 'No shift')}</div>
+        <div class="edh-badges">
+          ${empStatusBadge(emp.employmentStatus)}
+          ${isTodayBirthday(emp.dob) ? '<span class="badge badge-amber">🎂 Birthday today</span>' : ''}
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="panelSignOutBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign Out
+      </button>`;
+    const signOutBtn = $('#panelSignOutBtn');
+    if (signOutBtn) {
+      signOutBtn.addEventListener('click', () => {
+        setPanelEmployee('');
+        toast('Signed out successfully');
+      });
+    }
+
+    // Tabs
+    $$('#panelTabs .chip').forEach((c) => c.classList.toggle('active', c.dataset.ptab === panelTab));
+
+    renderPanelTab(emp);
+  }
+
+  function renderPanelTab(emp) {
+    const root = $('#panelTabContent');
+    if (panelTab === 'appointments') root.innerHTML = panelAppointmentsHTML(emp);
+    else if (panelTab === 'attendance') {
+      root.innerHTML = panelAttendanceHTML(emp);
+      wirePanelAttendance(root, emp);
+    } else if (panelTab === 'leaves') {
+      root.innerHTML = panelLeavesHTML(emp);
+      wirePanelLeaves(root, emp);
+    } else if (panelTab === 'salary') root.innerHTML = panelSalaryHTML(emp);
+    else if (panelTab === 'profile') root.innerHTML = panelProfileHTML(emp);
+    else {
+      root.innerHTML = panelOverviewHTML(emp);
+      wirePanelOverview(root, emp);
+    }
+  }
+
+  /* ---------- Overview ---------- */
+  function panelOverviewHTML(emp) {
     const today = todayISO();
     const thisMonth = monthISO();
 
-    /* ---- Hero ---- */
-    $('#panelHero').innerHTML = `
+    const todayRec = attendanceFor(emp.id, today);
+    const todaysApts = db.appointments
+      .filter((a) => a.employeeId === emp.id && a.date === today && a.status !== 'Cancelled')
+      .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+    const upcoming = db.appointments.filter((a) => a.employeeId === emp.id && (a.status === 'Scheduled' || a.status === 'Confirmed') && a.date >= today);
+    const myLeaves = db.leaves.filter((l) => l.employeeId === emp.id);
+    const pendingLeaves = myLeaves.filter((l) => l.status === 'Pending');
+    const salaryThisMonth = db.salaries.find((s) => s.employeeId === emp.id && s.month === thisMonth);
+    const recentAtt = db.attendance
+      .filter((a) => a.employeeId === emp.id)
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+      .slice(0, 5);
+
+    const icons = {
+      att: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+      cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      leave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>',
+      pay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>',
+    };
+
+    const stats = [
+      { label: "Today's Attendance", value: todayRec ? todayRec.status : 'Not marked', sub: todayRec ? `Check-in ${todayRec.checkIn || '·'}` : 'Tap Check In below', icon: 'att', accent: todayRec ? 'var(--green)' : 'var(--amber)', bg: todayRec ? 'var(--green-50)' : 'var(--amber-50)' },
+      { label: "Today's Appointments", value: todaysApts.length, sub: fmtDate(today), icon: 'cal', accent: 'var(--brand)', bg: 'var(--brand-50)' },
+      { label: 'Upcoming Appointments', value: upcoming.length, sub: `${db.appointments.filter((a) => a.employeeId === emp.id).length} total`, icon: 'up', accent: 'var(--sky)', bg: 'var(--sky-50)' },
+      { label: 'Pending Leaves', value: pendingLeaves.length, sub: `${myLeaves.length} request(s) total`, icon: 'leave', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+      { label: 'Salary This Month', value: salaryThisMonth ? fmtMoney(salaryThisMonth.net) : '—', sub: salaryThisMonth ? salaryStatusBadge(salaryThisMonth.status) : fmtMonth(thisMonth), icon: 'pay', accent: 'var(--violet)', bg: 'var(--violet-50)' },
+    ];
+
+    return `
+      <div class="panel-quick-row">
+        ${
+          todayRec
+            ? `<button class="btn btn-ghost" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Checked in · ${esc(todayRec.checkIn || todayRec.status)}
+              </button>`
+            : `<button class="btn btn-primary" data-pan-act="checkin">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Check In Now
+              </button>`
+        }
+        <button class="btn btn-ghost" data-pan-act="leave">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Request Leave
+        </button>
+      </div>
+
+      <div class="stat-grid">
+        ${stats
+          .map(
+            (s) => `
+          <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+            <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
+            <div class="stat-value">${s.value}</div>
+            <div class="stat-label">${esc(s.label)}</div>
+            <div class="stat-sub">${s.sub}</div>
+          </div>`
+          )
+          .join('')}
+      </div>
+
+      <div class="detail-section-title">Today's Schedule</div>
+      <div class="panel">
+        <div class="panel-body">
+          ${
+            todaysApts.length
+              ? todaysApts
+                  .map((a) => {
+                    const cus = db.customers.find((c) => c.id === a.customerId);
+                    return `
+                <div class="emp-list-item">
+                  <div class="eli-info">
+                    <div class="eli-t">${esc(a.time || '·')} · ${esc(a.serviceName || 'Appointment')}</div>
+                    <div class="eli-s">${esc(cus?.fullName || 'Customer')}${cus?.mobile ? ' · ' + esc(cus.mobile) : ''}</div>
+                  </div>
+                  <div class="eli-right">
+                    ${appointmentStatusBadge(a.status)}
+                    ${a.price != null && a.price !== '' ? `<span class="eli-amount amount-green">${fmtMoney(a.price)}</span>` : ''}
+                  </div>
+                </div>`;
+                  })
+                  .join('')
+              : `<div class="empty-state empty-inline"><p class="empty-text">No appointments today.</p></div>`
+          }
+        </div>
+      </div>
+
+      <div class="detail-section-title">Recent Attendance</div>
+      <div class="panel">
+        <div class="panel-body">
+          ${
+            recentAtt.length
+              ? recentAtt
+                  .map(
+                    (a) => `
+                <div class="emp-list-item">
+                  <div class="eli-info">
+                    <div class="eli-t">${fmtDate(a.date)}</div>
+                    <div class="eli-s">${a.checkIn ? 'Check-in ' + esc(a.checkIn) : 'No check-in time'}</div>
+                  </div>
+                  <div class="eli-right">${attStatusBadgeLocal(a.status)}</div>
+                </div>`
+                  )
+                  .join('')
+              : `<div class="empty-state empty-inline"><p class="empty-text">No attendance records yet.</p></div>`
+          }
+        </div>
+      </div>`;
+  }
+
+  function wirePanelOverview(root, emp) {
+    const btn = root.querySelector('[data-pan-act="checkin"]');
+    if (btn) btn.addEventListener('click', () => employeeCheckIn(emp.id));
+    const leaveBtn = root.querySelector('[data-pan-act="leave"]');
+    if (leaveBtn) leaveBtn.addEventListener('click', () => openLeaveForm(null, { employeeId: emp.id }));
+  }
+
+  /* ---------- Appointments tab ---------- */
+  function panelAppointmentsHTML(emp) {
+    const today = todayISO();
+    let list = db.appointments.filter((a) => a.employeeId === emp.id);
+
+    if (panelAptFilter === 'today') list = list.filter((a) => a.date === today);
+    else if (panelAptFilter === 'upcoming') list = list.filter((a) => (a.status === 'Scheduled' || a.status === 'Confirmed') && a.date >= today);
+    else if (panelAptFilter === 'completed') list = list.filter((a) => a.status === 'Completed');
+
+    list.sort((a, b) => `${b.date || ''}T${b.time || ''}`.localeCompare(`${a.date || ''}T${a.time || ''}`));
+
+    return `
+      <div class="filter-chips" id="panelAptFilters">
+        <button class="chip ${panelAptFilter === 'today' ? 'active' : ''}" data-paf="today">Today</button>
+        <button class="chip ${panelAptFilter === 'upcoming' ? 'active' : ''}" data-paf="upcoming">Upcoming</button>
+        <button class="chip ${panelAptFilter === 'completed' ? 'active' : ''}" data-paf="completed">Completed</button>
+        <button class="chip ${panelAptFilter === 'all' ? 'active' : ''}" data-paf="all">All</button>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          ${
+            list.length
+              ? list
+                  .map((a) => {
+                    const cus = db.customers.find((c) => c.id === a.customerId);
+                    return `
+                <div class="emp-list-item">
+                  <div class="eli-info">
+                    <div class="eli-t">${esc(a.serviceName || 'Appointment')}</div>
+                    <div class="eli-s">${esc(cus?.fullName || 'Customer')}${cus?.mobile ? ' · ' + esc(cus.mobile) : ''}</div>
+                    <div class="eli-s">${fmtDate(a.date)} · ${esc(a.time || '·')} · ${esc(a.id)}</div>
+                  </div>
+                  <div class="eli-right">
+                    ${appointmentStatusBadge(a.status)}
+                    ${a.price != null && a.price !== '' ? `<span class="eli-amount">${fmtMoney(a.price)}</span>` : ''}
+                  </div>
+                </div>`;
+                  })
+                  .join('')
+              : `<div class="empty-state empty-inline"><p class="empty-text">No ${panelAptFilter === 'all' ? '' : panelAptFilter + ' '}appointments found.</p></div>`
+          }
+        </div>
+      </div>`;
+  }
+
+  /* ---------- Attendance tab ---------- */
+  function panelAttendanceHTML(emp) {
+    const thisMonth = monthISO();
+    const all = db.attendance.filter((a) => a.employeeId === emp.id).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    const monthRecs = all.filter((a) => String(a.date || '').slice(0, 7) === thisMonth);
+    const todayRec = attendanceFor(emp.id, todayISO());
+
+    const counts = {
+      Present: monthRecs.filter((a) => a.status === 'Present').length,
+      Late: monthRecs.filter((a) => a.status === 'Late').length,
+      Absent: monthRecs.filter((a) => a.status === 'Absent').length,
+      Half: monthRecs.filter((a) => a.status === 'Half Day').length,
+    };
+
+    return `
+      ${
+        todayRec
+          ? `<div class="panel-quick-row"><button class="btn btn-ghost" disabled>✓ Checked in today · ${esc(todayRec.checkIn || todayRec.status)} · ${esc(todayRec.status)}</button></div>`
+          : `<div class="panel-quick-row"><button class="btn btn-primary" data-pan-act="checkin">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Check In Now
+            </button></div>`
+      }
+
+      <div class="detail-section-title">This Month · ${esc(fmtMonth(thisMonth))}</div>
+      <div class="panel-summary-strip">
+        <div class="ps-cell green"><div class="ps-n">${counts.Present}</div><div class="ps-l">Present</div></div>
+        <div class="ps-cell amber"><div class="ps-n">${counts.Late}</div><div class="ps-l">Late</div></div>
+        <div class="ps-cell red"><div class="ps-n">${counts.Absent}</div><div class="ps-l">Absent</div></div>
+        <div class="ps-cell sky"><div class="ps-n">${counts.Half}</div><div class="ps-l">Half Day</div></div>
+      </div>
+
+      <div class="detail-section-title">Full History</div>
+      <div class="panel">
+        <div class="panel-body">
+          ${
+            all.length
+              ? all
+                  .map(
+                    (a) => `
+                <div class="emp-list-item">
+                  <div class="eli-info">
+                    <div class="eli-t">${fmtDate(a.date)}</div>
+                    <div class="eli-s">${a.checkIn ? 'Check-in ' + esc(a.checkIn) : 'No check-in time'}${a.notes ? ' · ' + esc(a.notes) : ''}</div>
+                  </div>
+                  <div class="eli-right">${attStatusBadgeLocal(a.status)}</div>
+                </div>`
+                  )
+                  .join('')
+              : `<div class="empty-state empty-inline"><p class="empty-text">No attendance records yet.</p></div>`
+          }
+        </div>
+      </div>`;
+  }
+
+  function wirePanelAttendance(root, emp) {
+    const btn = root.querySelector('[data-pan-act="checkin"]');
+    if (btn) btn.addEventListener('click', () => employeeCheckIn(emp.id));
+  }
+
+  /* ---------- Leaves tab ---------- */
+  function panelLeavesHTML(emp) {
+    const all = db.leaves.filter((l) => l.employeeId === emp.id).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const pending = all.filter((l) => l.status === 'Pending').length;
+    const approvedDays = all.filter((l) => l.status === 'Approved').reduce((t, l) => t + daysBetween(l.fromDate, l.toDate), 0);
+
+    return `
+      <div class="panel-quick-row">
+        <button class="btn btn-primary" data-pan-act="leave">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Request Leave
+        </button>
+      </div>
+
+      <div class="panel-summary-strip" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="ps-cell"><div class="ps-n">${all.length}</div><div class="ps-l">Total</div></div>
+        <div class="ps-cell amber"><div class="ps-n">${pending}</div><div class="ps-l">Pending</div></div>
+        <div class="ps-cell green"><div class="ps-n">${approvedDays}</div><div class="ps-l">Approved Days</div></div>
+      </div>
+
+      <div class="detail-section-title">My Requests</div>
+      <div class="panel">
+        <div class="panel-body">
+          ${
+            all.length
+              ? all
+                  .map(
+                    (l) => `
+                <div class="emp-list-item">
+                  <div class="eli-info">
+                    <div class="eli-t">${esc(l.type || 'Leave')} · ${daysBetween(l.fromDate, l.toDate)} day(s)</div>
+                    <div class="eli-s">${fmtDate(l.fromDate)} → ${fmtDate(l.toDate)}</div>
+                    ${l.reason ? `<div class="eli-s">${esc(l.reason)}</div>` : ''}
+                  </div>
+                  <div class="eli-right">${leaveStatusBadge(l.status)}</div>
+                </div>`
+                  )
+                  .join('')
+              : `<div class="empty-state empty-inline"><p class="empty-text">No leave requests yet. Tap "Request Leave" to apply.</p></div>`
+          }
+        </div>
+      </div>`;
+  }
+
+  function wirePanelLeaves(root, emp) {
+    const btn = root.querySelector('[data-pan-act="leave"]');
+    if (btn) btn.addEventListener('click', () => openLeaveForm(null, { employeeId: emp.id }));
+  }
+
+  /* ---------- Salary tab ---------- */
+  function panelSalaryHTML(emp) {
+    const all = db.salaries.filter((s) => s.employeeId === emp.id).sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
+    const paid = all.filter((s) => s.status === 'Paid');
+    const totalPaid = paid.reduce((t, s) => t + num(s.net), 0);
+    const pendingAmt = all.filter((s) => s.status === 'Pending').reduce((t, s) => t + num(s.net), 0);
+    const totalBonus = all.reduce((t, s) => t + num(s.bonus), 0);
+
+    return `
+      <div class="panel-summary-strip">
+        <div class="ps-cell green"><div class="ps-n">${fmtMoney(totalPaid)}</div><div class="ps-l">Total Paid</div></div>
+        <div class="ps-cell amber"><div class="ps-n">${fmtMoney(pendingAmt)}</div><div class="ps-l">Pending</div></div>
+        <div class="ps-cell"><div class="ps-n">${all.length}</div><div class="ps-l">Records</div></div>
+        <div class="ps-cell sky"><div class="ps-n">${fmtMoney(totalBonus)}</div><div class="ps-l">Bonuses</div></div>
+      </div>
+
+      <div class="detail-section-title">Salary History</div>
+      <div class="panel">
+        <div class="panel-body">
+          ${
+            all.length
+              ? all
+                  .map(
+                    (s) => `
+                <div class="emp-list-item">
+                  <div class="eli-info">
+                    <div class="eli-t">${esc(fmtMonth(s.month))}</div>
+                    <div class="eli-s">Basic ${fmtMoney(s.basic)}${num(s.bonus) ? ' · Bonus +' + fmtMoney(s.bonus) : ''}${num(s.deductions) ? ' · Deductions -' + fmtMoney(s.deductions) : ''}</div>
+                    <div class="eli-s">${esc(s.id)}${s.paidDate ? ' · Paid ' + fmtDate(s.paidDate) : ''} · ${esc(s.method || '·')}</div>
+                  </div>
+                  <div class="eli-right">
+                    <span class="eli-amount">${fmtMoney(s.net)}</span>
+                    ${salaryStatusBadge(s.status)}
+                  </div>
+                </div>`
+                  )
+                  .join('')
+              : `<div class="empty-state empty-inline"><p class="empty-text">No salary records yet.</p></div>`
+          }
+        </div>
+      </div>`;
+  }
+
+  /* ---------- Profile tab ---------- */
+  function panelProfileHTML(emp) {
+    const visitsDone = db.visits.filter((v) => v.employeeId === emp.id && v.status === 'Completed').length;
+    const totalApts = db.appointments.filter((a) => a.employeeId === emp.id).length;
+
+    return `
       <div class="profile-hero">
         ${avatarHTML(emp, 'avatar-xl')}
         <div class="profile-hero-info">
@@ -4077,149 +4474,34 @@
           <div class="badges">
             <span class="badge badge-brand">${esc(emp.id)}</span>
             ${empStatusBadge(emp.employmentStatus)}
-            <span class="badge badge-gray">${esc(emp.shift || 'No shift assigned')}</span>
+            <span class="badge badge-gray">${visitsDone} visits · ${totalApts} appointments</span>
           </div>
         </div>
+      </div>
+
+      <div class="detail-section-title">Personal Information</div>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Date of Birth</div><div class="value">${fmtDate(emp.dob)}${isTodayBirthday(emp.dob) ? ' · 🎂 Today!' : ''}</div></div>
+        <div class="detail-item"><div class="label">Gender</div><div class="value">${esc(emp.gender || '·')}</div></div>
+        <div class="detail-item"><div class="label">Mobile Number</div><div class="value">${esc(emp.mobile || '·')}</div></div>
+        <div class="detail-item span-2"><div class="label">Address</div><div class="value">${esc(emp.address || '·')}</div></div>
+      </div>
+
+      <div class="detail-section-title">Employment</div>
+      <div class="detail-grid">
+        <div class="detail-item"><div class="label">Staff Role</div><div class="value">${esc(emp.staffRole || '·')}</div></div>
+        <div class="detail-item"><div class="label">Specialties / Services</div><div class="value">${esc(emp.specialties || '·')}</div></div>
+        <div class="detail-item"><div class="label">Experience (Years)</div><div class="value">${esc(emp.experienceYears || '·')}</div></div>
+        <div class="detail-item"><div class="label">Commission Rate</div><div class="value">${emp.commissionRate ? esc(emp.commissionRate) + '%' : '·'}</div></div>
+        <div class="detail-item"><div class="label">Shift</div><div class="value">${esc(emp.shift || '·')}</div></div>
+        <div class="detail-item"><div class="label">Joining Date</div><div class="value">${fmtDate(emp.joiningDate)}</div></div>
+        <div class="detail-item"><div class="label">Employment Status</div><div class="value">${empStatusBadge(emp.employmentStatus)}</div></div>
+        <div class="detail-item"><div class="label">Employee ID</div><div class="value">${esc(emp.id)}</div></div>
+        <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(emp.notes || '·')}</div></div>
       </div>`;
-
-    /* ---- Scoped data ---- */
-    const apts = db.appointments.filter((a) => a.employeeId === emp.id);
-    const upcoming = apts
-      .filter((a) => (a.status === 'Scheduled' || a.status === 'Confirmed') && a.date >= today)
-      .sort((a, b) => `${a.date || ''}T${a.time || ''}`.localeCompare(`${b.date || ''}T${b.time || ''}`));
-
-    const attAll = db.attendance.filter((a) => a.employeeId === emp.id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    const attMonth = attAll.filter((a) => (a.date || '').slice(0, 7) === thisMonth);
-    const presentDays = attMonth.filter((a) => a.status === 'Present' || a.status === 'Late' || a.status === 'Half Day').length;
-
-    const leaves = db.leaves.filter((l) => l.employeeId === emp.id);
-    const leavesPending = leaves.filter((l) => l.status === 'Pending').length;
-    const leavesApprovedDays = leaves.filter((l) => l.status === 'Approved').reduce((t, l) => t + daysBetween(l.fromDate, l.toDate), 0);
-
-    const salaries = db.salaries.filter((s) => s.employeeId === emp.id);
-    const salaryPaid = salaries.filter((s) => s.status === 'Paid').reduce((t, s) => t + num(s.net), 0);
-
-    const visitsDone = db.visits.filter((v) => v.employeeId === emp.id && v.status === 'Completed').length;
-
-    /* ---- Stats ---- */
-    const icons = {
-      cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-      check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
-      leave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>',
-      pay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>',
-      visit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
-    };
-
-    const stats = [
-      { label: 'Upcoming Appointments', value: upcoming.length, sub: `${apts.length} total appointments`, icon: 'cal', accent: 'var(--brand)', bg: 'var(--brand-50)' },
-      { label: 'Present Days', value: presentDays, sub: `${attMonth.length} days marked · ${fmtMonth(thisMonth)}`, icon: 'check', accent: 'var(--green)', bg: 'var(--green-50)' },
-      { label: 'Leaves', value: leaves.length, sub: leavesPending ? `${leavesPending} pending approval` : `${leavesApprovedDays} approved day(s)`, icon: 'leave', accent: 'var(--amber)', bg: 'var(--amber-50)' },
-      { label: 'Salary Paid', value: fmtMoney(salaryPaid), sub: `${salaries.length} record(s)`, icon: 'pay', accent: 'var(--violet)', bg: 'var(--violet-50)' },
-      { label: 'Visits Completed', value: visitsDone, sub: `${db.visits.filter((v) => v.employeeId === emp.id).length} visits total`, icon: 'visit', accent: 'var(--sky)', bg: 'var(--sky-50)' },
-    ];
-    $('#panelStats').innerHTML = stats
-      .map(
-        (s) => `
-      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
-        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
-        <div class="stat-value">${s.value}</div>
-        <div class="stat-label">${esc(s.label)}</div>
-        <div class="stat-sub">${esc(s.sub)}</div>
-      </div>`
-      )
-      .join('');
-
-    /* ---- Profile details ---- */
-    $('#panelProfile').innerHTML = `
-      <div class="detail-item"><div class="label">Date of Birth</div><div class="value">${fmtDate(emp.dob)}${isTodayBirthday(emp.dob) ? ' · 🎂 Today!' : ''}</div></div>
-      <div class="detail-item"><div class="label">Gender</div><div class="value">${esc(emp.gender || '·')}</div></div>
-      <div class="detail-item"><div class="label">Mobile Number</div><div class="value">${esc(emp.mobile || '·')}</div></div>
-      <div class="detail-item"><div class="label">Staff Role</div><div class="value">${esc(emp.staffRole || '·')}</div></div>
-      <div class="detail-item"><div class="label">Specialties / Services</div><div class="value">${esc(emp.specialties || '·')}</div></div>
-      <div class="detail-item"><div class="label">Experience (Years)</div><div class="value">${esc(emp.experienceYears || '·')}</div></div>
-      <div class="detail-item"><div class="label">Commission Rate</div><div class="value">${emp.commissionRate ? esc(emp.commissionRate) + '%' : '·'}</div></div>
-      <div class="detail-item"><div class="label">Shift</div><div class="value">${esc(emp.shift || '·')}</div></div>
-      <div class="detail-item"><div class="label">Joining Date</div><div class="value">${fmtDate(emp.joiningDate)}</div></div>
-      <div class="detail-item"><div class="label">Employment Status</div><div class="value">${empStatusBadge(emp.employmentStatus)}</div></div>
-      <div class="detail-item span-2"><div class="label">Address</div><div class="value">${esc(emp.address || '·')}</div></div>
-      <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(emp.notes || '·')}</div></div>`;
-
-    /* ---- Upcoming appointments ---- */
-    $('#panelAptBadge').textContent = upcoming.length;
-    $('#panelAppointments').innerHTML = upcoming.length
-      ? upcoming
-          .slice(0, 5)
-          .map((a) => {
-            const cus = db.customers.find((c) => c.id === a.customerId);
-            return `
-          <div class="mini-row">
-            <div class="info">
-              <div class="t">${esc(a.serviceName || 'Salon Appointment')}</div>
-              <div class="s">${esc(cus?.fullName || 'Customer')} · ${fmtDate(a.date)} · ${esc(a.time || '·')}</div>
-            </div>
-            ${appointmentStatusBadge(a.status)}
-          </div>`;
-          })
-          .join('')
-      : `<div class="empty-state empty-inline"><p class="empty-text">No upcoming appointments scheduled.</p></div>`;
-
-    /* ---- Recent attendance ---- */
-    $('#panelAttendance').innerHTML = attAll.length
-      ? attAll
-          .slice(0, 7)
-          .map((a) => {
-            const cls = a.status === 'Present' ? 'badge-green' : a.status === 'Late' ? 'badge-amber' : a.status === 'Absent' ? 'badge-red' : 'badge-sky';
-            return `
-          <div class="mini-row">
-            <div class="info">
-              <div class="t">${fmtDate(a.date)}</div>
-              <div class="s">${a.checkIn ? 'Check-in ' + esc(a.checkIn) : 'No check-in time'}</div>
-            </div>
-            <span class="badge ${cls}">${esc(a.status)}</span>
-          </div>`;
-          })
-          .join('')
-      : `<div class="empty-state empty-inline"><p class="empty-text">No attendance records yet.</p></div>`;
-
-    /* ---- Leaves ---- */
-    $('#panelLeaveBadge').textContent = leaves.length;
-    $('#panelLeaves').innerHTML = leaves.length
-      ? [...leaves]
-          .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
-          .slice(0, 5)
-          .map(
-            (l) => `
-          <div class="mini-row">
-            <div class="info">
-              <div class="t">${esc(l.type || 'Leave')}</div>
-              <div class="s">${fmtDate(l.fromDate)} → ${fmtDate(l.toDate)} · ${daysBetween(l.fromDate, l.toDate)} day(s)</div>
-            </div>
-            ${leaveStatusBadge(l.status)}
-          </div>`
-          )
-          .join('')
-      : `<div class="empty-state empty-inline"><p class="empty-text">No leave requests yet.</p></div>`;
-
-    /* ---- Salary ---- */
-    $('#panelSalaryBadge').textContent = salaries.length;
-    $('#panelSalary').innerHTML = salaries.length
-      ? [...salaries]
-          .sort((a, b) => (b.month || '').localeCompare(a.month || ''))
-          .slice(0, 5)
-          .map(
-            (s) => `
-          <div class="mini-row">
-            <div class="info">
-              <div class="t">${fmtMoney(s.net)} · ${esc(fmtMonth(s.month))}</div>
-              <div class="s">Basic ${fmtMoney(s.basic)}${num(s.bonus) ? ' · Bonus +' + fmtMoney(s.bonus) : ''}${num(s.deductions) ? ' · Deductions -' + fmtMoney(s.deductions) : ''}</div>
-            </div>
-            ${salaryStatusBadge(s.status)}
-          </div>`
-          )
-          .join('')
-      : `<div class="empty-state empty-inline"><p class="empty-text">No salary records yet.</p></div>`;
   }
 
+  /* ---------- Sign-in picker ---------- */
   function renderEmployeePicker() {
     const q = panelEmployeeSearch.toLowerCase();
     const list = db.employees.filter((e) => !q || (e.fullName || '').toLowerCase().includes(q) || (e.staffRole || '').toLowerCase().includes(q) || e.id.toLowerCase().includes(q));
@@ -4244,11 +4526,11 @@
     grid.innerHTML = list
       .map(
         (e) => `
-      <button type="button" class="emp-pick-card ${e.id === panelEmployeeId ? 'selected' : ''}" data-id="${esc(e.id)}">
+      <button type="button" class="emp-pick-card" data-id="${esc(e.id)}">
         ${avatarHTML(e, 'avatar-lg')}
         <div class="emp-pick-info">
           <h4>${esc(e.fullName)}</h4>
-          <p>${esc(e.staffRole || 'Employee')} · ${esc(e.id)}</p>
+          <p>${esc(e.staffRole || 'Employee')} · ${esc(e.shift || e.id)}</p>
           ${empStatusBadge(e.employmentStatus)}
         </div>
         <span class="emp-pick-arrow">
@@ -4259,9 +4541,13 @@
       .join('');
 
     $$('#panelEmpGrid .emp-pick-card').forEach((card) => {
-      card.addEventListener('click', () => setPanelEmployee(card.dataset.id));
+      card.addEventListener('click', () => {
+        setPanelEmployee(card.dataset.id);
+        toast(`Welcome, ${db.employees.find((x) => x.id === card.dataset.id)?.fullName || 'employee'}!`);
+      });
     });
   }
+
 
   /* ================= INIT ================= */
   function init() {
@@ -4366,15 +4652,16 @@
       renderEmployees();
     });
 
-    // Employee Panel
+    // Employee Panel (employee dashboard)
     $('#panelEmpSearch').addEventListener('input', (e) => {
       panelEmployeeSearch = e.target.value;
       renderEmployeePicker();
     });
-    $('#panelBackBtn').addEventListener('click', () => setPanelEmployee(''));
-    $('#panelLeaveBtn').addEventListener('click', () => {
-      if (panelEmployeeId) openLeaveForm(null, { employeeId: panelEmployeeId });
-      else toast('Select an employee first.', 'error');
+    $$('#panelTabs .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        panelTab = chip.dataset.ptab;
+        renderEmployeePanel();
+      });
     });
 
     // Customer
