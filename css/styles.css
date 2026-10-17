@@ -1748,3 +1748,114 @@ svg { width: 18px; height: 18px; flex-shrink: 0; }
 .ps-cell.amber .ps-n { color: var(--amber); }
 .ps-cell.red .ps-n { color: var(--red); }
 .ps-cell.sky .ps-n { color: var(--sky); }
+
+/* ============================================================
+   Role-based login + Employee Dashboard shell
+   ============================================================ */
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+  background: linear-gradient(150deg, #0e1015 0%, #1a1d2e 45%, #232850 100%);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.login-screen[hidden] { display: none; }
+
+.login-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 26px 22px;
+  box-shadow: var(--shadow-lg);
+  animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-hint {
+  margin-top: 14px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  text-align: center;
+  line-height: 1.55;
+}
+.login-hint strong { color: var(--text-2); }
+
+#loginEmpPane .emp-pick-card { padding: 12px 14px; }
+#loginEmpPane .emp-pick-card .avatar-lg { width: 44px; height: 44px; font-size: 15px; border-radius: 12px; }
+
+/* Employee sidebar footer */
+.emp-user-chip { display: flex; align-items: center; gap: 11px; }
+.emp-user-chip .info { flex: 1; min-width: 0; }
+.emp-user-chip .info .t {
+  color: #eceef4;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.emp-user-chip .info .s { color: #71768a; font-size: 11.5px; }
+.emp-signout-btn {
+  width: 100%;
+  margin-top: 12px;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cdd2e0;
+}
+.emp-signout-btn:hover { background: rgba(255, 80, 80, 0.15); color: #ff8a8a; border-color: rgba(255, 100, 100, 0.3); }
+
+/* Progress lines (employee overview) */
+.progress-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.progress-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+.progress-card .pg-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.progress-card .pg-title { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.progress-card .pg-val { font-size: 12.5px; font-weight: 800; color: var(--brand); }
+.progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #eef0f4;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #5b64f5, #3d4bdb);
+  transition: width 0.4s ease;
+}
+.progress-fill.green { background: linear-gradient(90deg, #34d399, #12a150); }
+
+@media (min-width: 640px) {
+  .progress-grid { grid-template-columns: 1fr 1fr; }
+  .login-card { padding: 30px 28px; }
+}
+
+/* Employee mobile bottom nav shows only inside empApp */
+#empApp .bottom-nav { display: flex; }
+@media (min-width: 861px) {
+  #empApp .bottom-nav { display: none; }
+}
+
+.app[hidden] { display: none; }

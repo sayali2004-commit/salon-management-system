@@ -575,7 +575,6 @@
   /* ---------------- Navigation ---------------- */
   const SECTIONS = {
     dashboard: { title: 'Dashboard', sub: 'Overview of your management system' },
-    'employee-panel': { title: 'Employee Dashboard', sub: 'Sign in to view your attendance, leaves, salary & appointments' },
     employees: { title: 'Employees', sub: 'Create and manage your employee directory' },
     customers: { title: 'Customers', sub: 'Manage your customer records' },
     visits: { title: 'Visits', sub: 'Customer visits with assigned staff & payments' },
@@ -592,6 +591,7 @@
   let currentSection = 'dashboard';
 
   function goto(section) {
+    if (!isAdmin()) return; // role-based guard: admin sections only for admin
     currentSection = section;
     $$('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
     $$('.bottom-nav [data-section]').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
@@ -607,9 +607,6 @@
     switch (section) {
       case 'dashboard':
         renderDashboard();
-        break;
-      case 'employee-panel':
-        renderEmployeePanel();
         break;
       case 'employees':
         renderEmployees();
@@ -726,7 +723,7 @@
         </div>`
         )
         .join('');
-      $$('#setupSteps [data-setup]').forEach((btn) => {
+      $$( '#setupSteps [data-setup]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const a = btn.dataset.setup;
           if (a === 'service') openServiceForm();
@@ -887,14 +884,14 @@
       )
       .join('');
 
-    $$('#employeeTable tbody tr').forEach((tr) => {
+    $$( '#employeeTable tbody tr').forEach((tr) => {
       tr.addEventListener('click', (ev) => {
         if (ev.target.closest('button')) return;
         viewEmployee(tr.dataset.id);
       });
     });
 
-    $$('#employeeTable [data-act]').forEach((btn) => {
+    $$( '#employeeTable [data-act]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = btn.closest('tr').dataset.id;
@@ -1296,14 +1293,14 @@
       })
       .join('');
 
-    $$('#customerTable tbody tr').forEach((tr) => {
+    $$( '#customerTable tbody tr').forEach((tr) => {
       tr.addEventListener('click', (ev) => {
         if (ev.target.closest('button')) return;
         viewCustomer(tr.dataset.id);
       });
     });
 
-    $$('#customerTable [data-act]').forEach((btn) => {
+    $$( '#customerTable [data-act]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = btn.closest('tr').dataset.id;
@@ -1762,14 +1759,14 @@
       })
       .join('');
 
-    $$('#visitTable tbody tr').forEach((tr) => {
+    $$( '#visitTable tbody tr').forEach((tr) => {
       tr.addEventListener('click', (ev) => {
         if (ev.target.closest('button')) return;
         viewVisit(tr.dataset.id);
       });
     });
 
-    $$('#visitTable [data-act]').forEach((btn) => {
+    $$( '#visitTable [data-act]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = btn.closest('tr').dataset.id;
@@ -2183,14 +2180,14 @@
       })
       .join('');
 
-    $$('#appointmentTable tbody tr').forEach((tr) => {
+    $$( '#appointmentTable tbody tr').forEach((tr) => {
       tr.addEventListener('click', (ev) => {
         if (ev.target.closest('button')) return;
         viewAppointment(tr.dataset.id);
       });
     });
 
-    $$('#appointmentTable [data-act]').forEach((btn) => {
+    $$( '#appointmentTable [data-act]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = btn.closest('tr').dataset.id;
@@ -2722,7 +2719,7 @@
       )
       .join('');
 
-    $$('#serviceGrid [data-act]').forEach((btn) => {
+    $$( '#serviceGrid [data-act]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = btn.closest('.service-card').dataset.id;
@@ -2944,13 +2941,13 @@
       })
       .join('');
 
-    $$('#paymentTable tbody tr').forEach((tr) => {
+    $$( '#paymentTable tbody tr').forEach((tr) => {
       tr.addEventListener('click', (ev) => {
         if (ev.target.closest('button')) return;
         viewPayment(tr.dataset.id);
       });
     });
-    $$('#paymentTable [data-act]').forEach((btn) => {
+    $$( '#paymentTable [data-act]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = btn.closest('tr').dataset.id;
@@ -3231,7 +3228,7 @@
       )
       .join('');
 
-    $$('#expenseTable [data-act]').forEach((btn) => {
+    $$( '#expenseTable [data-act]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = btn.closest('tr').dataset.id;
@@ -3397,7 +3394,7 @@
       .join('');
     if (empty) empty.style.display = 'none';
 
-    $$('#attendanceTimetables [data-tt-edit]').forEach((btn) => {
+    $$( '#attendanceTimetables [data-tt-edit]').forEach((btn) => {
       btn.addEventListener('click', () => openTimetableForm(btn.dataset.ttEdit));
     });
   }
@@ -3609,7 +3606,7 @@
       })
       .join('');
 
-    $$('#attendanceList .att-row').forEach((row) => {
+    $$( '#attendanceList .att-row').forEach((row) => {
       const empId = row.dataset.id;
       $$('.seg-group button', row).forEach((btn) => {
         btn.addEventListener('click', () => setAttendance(empId, btn.dataset.status));
@@ -3770,7 +3767,7 @@
       })
       .join('');
 
-    $$('#leaveTable [data-act]').forEach((btn) => {
+    $$( '#leaveTable [data-act]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = btn.closest('tr').dataset.id;
@@ -4012,7 +4009,7 @@
       })
       .join('');
 
-    $$('#salaryTable [data-act]').forEach((btn) => {
+    $$( '#salaryTable [data-act]').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = btn.closest('tr').dataset.id;
@@ -4170,32 +4167,486 @@
     toast('Salary record deleted');
   }
 
-﻿  /* ================= EMPLOYEE PANEL (employee-side dashboard) ================= */
-  const PANEL_EMP_KEY = 'salon_panel_emp';
-  let panelEmployeeSearch = '';
-  let panelEmployeeId = '';
-  let panelTab = 'overview';
-  let panelAptFilter = 'today';
+﻿  /* ================= AUTH / ROLE SESSION ================= */
+  const AUTH_KEY = 'salon_session';
+  const AUTH_CFG_KEY = 'salon_auth_cfg';
+  let session = null;
 
   try {
-    panelEmployeeId = localStorage.getItem(PANEL_EMP_KEY) || '';
+    session = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
   } catch {
-    panelEmployeeId = '';
+    session = null;
   }
 
-  function setPanelEmployee(id) {
-    panelEmployeeId = id || '';
-    panelTab = 'overview';
+  function saveSession(s) {
+    session = s;
     try {
-      if (id) localStorage.setItem(PANEL_EMP_KEY, id);
-      else localStorage.removeItem(PANEL_EMP_KEY);
+      localStorage.setItem(AUTH_KEY, JSON.stringify(s));
     } catch {
-      /* ignore storage errors */
+      /* ignore */
     }
-    renderEmployeePanel();
   }
 
-  function employeeCheckIn(empId) {
+  function clearSession() {
+    session = null;
+    try {
+      localStorage.removeItem(AUTH_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function isAdmin() {
+    return !!session && session.role === 'admin';
+  }
+
+  function isEmployee() {
+    return !!session && session.role === 'employee';
+  }
+
+  function currentEmployee() {
+    if (!isEmployee()) return null;
+    return db.employees.find((e) => e.id === session.employeeId) || null;
+  }
+
+  function getAdminPassword() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem(AUTH_CFG_KEY) || 'null');
+      return (cfg && cfg.adminPassword) || 'admin123';
+    } catch {
+      return 'admin123';
+    }
+  }
+
+  /* Route by role after login/logout */
+  function route() {
+    const login = $('#loginScreen');
+    const adminApp = $('#app');
+    const empApp = $('#empApp');
+
+    if (!session) {
+      login.hidden = false;
+      adminApp.style.display = 'none';
+      empApp.hidden = true;
+      renderLoginEmployees();
+      return;
+    }
+
+    login.hidden = true;
+
+    if (isAdmin()) {
+      adminApp.style.display = '';
+      empApp.hidden = true;
+      goto('dashboard');
+    } else if (isEmployee()) {
+      if (!currentEmployee()) {
+        // Employee record was deleted — force logout
+        clearSession();
+        route();
+        toast('Your employee record was removed. Please contact the admin.', 'error');
+        return;
+      }
+      adminApp.style.display = 'none';
+      empApp.hidden = false;
+      empGoto('emp-dash');
+    }
+  }
+
+  function adminLogin(password) {
+    if (password === getAdminPassword()) {
+      saveSession({ role: 'admin', loggedInAt: new Date().toISOString() });
+      toast('Welcome back, Admin');
+      route();
+      return true;
+    }
+    toast('Incorrect admin password.', 'error');
+    return false;
+  }
+
+  function employeeLogin(employeeId) {
+    const emp = db.employees.find((e) => e.id === employeeId);
+    if (!emp) {
+      toast('Employee not found.', 'error');
+      return false;
+    }
+    saveSession({ role: 'employee', employeeId, loggedInAt: new Date().toISOString() });
+    toast(`Welcome, ${emp.fullName}!`);
+    route();
+    return true;
+  }
+
+  function logout() {
+    clearSession();
+    toast('Signed out successfully');
+    route();
+  }
+
+  /* Login screen — employee profile list */
+  let loginEmpSearch = '';
+
+  function renderLoginEmployees() {
+    const grid = $('#loginEmpGrid');
+    const empty = $('#loginEmpEmpty');
+    if (!grid) return;
+    const q = loginEmpSearch.toLowerCase();
+    const list = db.employees.filter((e) => !q || (e.fullName || '').toLowerCase().includes(q) || (e.staffRole || '').toLowerCase().includes(q));
+
+    if (!db.employees.length) {
+      grid.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = list.length ? 'none' : 'block';
+    if (!list.length) {
+      grid.innerHTML = '';
+      return;
+    }
+
+    grid.innerHTML = list
+      .map(
+        (e) => `
+      <button type="button" class="emp-pick-card" data-id="${esc(e.id)}">
+        ${avatarHTML(e, 'avatar-lg')}
+        <div class="emp-pick-info">
+          <h4>${esc(e.fullName)}</h4>
+          <p>${esc(e.staffRole || 'Employee')}${e.shift ? ' · ' + esc(e.shift) : ''}</p>
+        </div>
+        <span class="emp-pick-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </span>
+      </button>`
+      )
+      .join('');
+
+    $$('#loginEmpGrid .emp-pick-card').forEach((card) => {
+      card.addEventListener('click', () => employeeLogin(card.dataset.id));
+    });
+  }
+
+  /* ================= EMPLOYEE DASHBOARD APP ================= */
+  const EMP_SECTIONS = {
+    'emp-dash': { title: 'Dashboard', sub: 'Your personal work overview' },
+    'emp-appointments': { title: 'My Appointments', sub: 'Your scheduled & completed appointments' },
+    'emp-visits': { title: 'My Visits', sub: 'Visits assigned to you' },
+    'emp-attendance': { title: 'My Attendance', sub: 'Check in and review your attendance' },
+    'emp-leaves': { title: 'My Leaves', sub: 'Request leave and track approvals' },
+    'emp-salary': { title: 'My Salary', sub: 'Your salary records & payments' },
+    'emp-profile': { title: 'My Profile', sub: 'Your personal & employment details' },
+  };
+
+  let empSection = 'emp-dash';
+  let empAptFilter = 'today';
+
+  function attBadge(status) {
+    const cls = status === 'Present' ? 'badge-green' : status === 'Late' ? 'badge-amber' : status === 'Absent' ? 'badge-red' : 'badge-sky';
+    return `<span class="badge ${cls}">${esc(status || '·')}</span>`;
+  }
+
+  function empGoto(section) {
+    if (!isEmployee()) return;
+    if (!EMP_SECTIONS[section]) return;
+    empSection = section;
+    $$('#empApp .nav-item').forEach((b) => b.classList.toggle('active', b.dataset.empSection === section));
+    $$('#empBottomNav [data-emp-section]').forEach((b) => b.classList.toggle('active', b.dataset.empSection === section));
+    $$('#empApp .section').forEach((s) => s.classList.toggle('active', s.id === section));
+    $('#empPageTitle').textContent = EMP_SECTIONS[section].title;
+    $('#empPageSubtitle').textContent = EMP_SECTIONS[section].sub;
+    renderEmp(section);
+    closeEmpSidebar();
+  }
+
+  function renderEmp(section) {
+    const emp = currentEmployee();
+    if (!emp) return;
+    switch (section) {
+      case 'emp-appointments':
+        renderEmpAppointments(emp);
+        break;
+      case 'emp-visits':
+        renderEmpVisits(emp);
+        break;
+      case 'emp-attendance':
+        renderEmpAttendance(emp);
+        break;
+      case 'emp-leaves':
+        renderEmpLeaves(emp);
+        break;
+      case 'emp-salary':
+        renderEmpSalary(emp);
+        break;
+      case 'emp-profile':
+        renderEmpProfile(emp);
+        break;
+      default:
+        renderEmpDash(emp);
+    }
+    updateEmpBadges(emp);
+  }
+
+  function updateEmpBadges(emp) {
+    const el = $('#empNavBadge-leaves');
+    if (!el) return;
+    const pending = db.leaves.filter((l) => l.employeeId === emp.id && l.status === 'Pending').length;
+    el.hidden = !pending;
+    el.textContent = pending;
+  }
+
+  /* ---- Employee overview ---- */
+  function renderEmpDash(emp) {
+    const today = todayISO();
+    const thisMonth = monthISO();
+
+    // Header
+    $('#empDashHead').innerHTML = `
+      <div class="emp-dash-head">
+        ${avatarHTML(emp, 'avatar-lg')}
+        <div class="edh-info">
+          <div class="edh-name">${esc(emp.fullName)}</div>
+          <div class="edh-meta">${esc(emp.staffRole || 'Employee')} · ${esc(emp.shift || 'No shift')}</div>
+          <div class="edh-badges">
+            <span class="badge badge-brand">${esc(emp.id)}</span>
+            ${empStatusBadge(emp.employmentStatus)}
+            ${isTodayBirthday(emp.dob) ? '<span class="badge badge-amber">🎂 Birthday today</span>' : ''}
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="empSignOutBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Sign Out
+        </button>
+      </div>`;
+    const soBtn = $('#empSignOutBtn');
+    if (soBtn) soBtn.addEventListener('click', logout);
+
+    // Scoped data
+    const apts = db.appointments.filter((a) => a.employeeId === emp.id);
+    const todaysApts = apts.filter((a) => a.date === today && a.status !== 'Cancelled').sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+    const upcoming = apts.filter((a) => (a.status === 'Scheduled' || a.status === 'Confirmed') && a.date >= today);
+    const myVisits = db.visits.filter((v) => v.employeeId === emp.id);
+    const visitsDone = myVisits.filter((v) => v.status === 'Completed').length;
+    const todayRec = attendanceFor(emp.id, today);
+    const monthRecs = db.attendance.filter((a) => a.employeeId === emp.id && String(a.date || '').slice(0, 7) === thisMonth);
+    const presentDays = monthRecs.filter((a) => a.status === 'Present' || a.status === 'Late' || a.status === 'Half Day').length;
+    const myLeaves = db.leaves.filter((l) => l.employeeId === emp.id);
+    const pendingLeaves = myLeaves.filter((l) => l.status === 'Pending').length;
+    const salaryThisMonth = db.salaries.find((s) => s.employeeId === emp.id && s.month === thisMonth);
+    const salaryPaid = db.salaries.filter((s) => s.employeeId === emp.id && s.status === 'Paid').reduce((t, s) => t + num(s.net), 0);
+
+    const icons = {
+      cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      visit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+      att: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+      leave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>',
+      pay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>',
+    };
+
+    const stats = [
+      { label: "Today's Appointments", value: todaysApts.length, sub: fmtDate(today), icon: 'cal', accent: 'var(--brand)', bg: 'var(--brand-50)' },
+      { label: 'Upcoming Appointments', value: upcoming.length, sub: `${apts.length} total`, icon: 'up', accent: 'var(--sky)', bg: 'var(--sky-50)' },
+      { label: 'My Visits', value: visitsDone, sub: `of ${myVisits.length} completed`, icon: 'visit', accent: 'var(--violet)', bg: 'var(--violet-50)' },
+      { label: "Today's Attendance", value: todayRec ? todayRec.status : 'Not marked', sub: todayRec ? `Check-in ${todayRec.checkIn || '·'}` : 'Tap Check In below', icon: 'att', accent: todayRec ? 'var(--green)' : 'var(--amber)', bg: todayRec ? 'var(--green-50)' : 'var(--amber-50)' },
+      { label: 'Pending Leaves', value: pendingLeaves, sub: `${myLeaves.length} request(s)`, icon: 'leave', accent: 'var(--amber)', bg: 'var(--amber-50)' },
+      { label: 'Salary This Month', value: salaryThisMonth ? fmtMoney(salaryThisMonth.net) : '—', sub: salaryThisMonth ? salaryStatusBadge(salaryThisMonth.status) : `Paid total ${fmtMoney(salaryPaid)}`, icon: 'pay', accent: 'var(--violet)', bg: 'var(--violet-50)' },
+    ];
+
+    $('#empDashStats').innerHTML = stats
+      .map(
+        (s) => `
+      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+        <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
+        <div class="stat-value">${s.value}</div>
+        <div class="stat-label">${esc(s.label)}</div>
+        <div class="stat-sub">${s.sub}</div>
+      </div>`
+      )
+      .join('');
+
+    // Progress (my work progress)
+    const attPct = monthRecs.length ? Math.round((presentDays / monthRecs.length) * 100) : 0;
+    const visitPct = myVisits.length ? Math.round((visitsDone / myVisits.length) * 100) : 0;
+    $('#empDashProgress').innerHTML = `
+      <div class="progress-card">
+        <div class="pg-head"><span class="pg-title">Attendance · ${esc(fmtMonth(thisMonth))}</span><span class="pg-val">${presentDays}/${monthRecs.length} days · ${attPct}%</span></div>
+        <div class="progress-track"><div class="progress-fill green" style="width:${attPct}%"></div></div>
+      </div>
+      <div class="progress-card">
+        <div class="pg-head"><span class="pg-title">Visits completed</span><span class="pg-val">${visitsDone}/${myVisits.length} · ${visitPct}%</span></div>
+        <div class="progress-track"><div class="progress-fill" style="width:${visitPct}%"></div></div>
+      </div>`;
+
+    // Quick action button states
+    const qaCheckin = $('#empQaCheckin');
+    if (todayRec) {
+      qaCheckin.disabled = true;
+      qaCheckin.innerHTML = `✓ Checked in · ${esc(todayRec.checkIn || todayRec.status)}`;
+    } else {
+      qaCheckin.disabled = false;
+      qaCheckin.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Check In Now`;
+    }
+
+    // Today's schedule
+    $('#empDashToday').innerHTML = todaysApts.length
+      ? todaysApts
+          .map((a) => {
+            const cus = db.customers.find((c) => c.id === a.customerId);
+            return `
+          <div class="emp-list-item">
+            <div class="eli-info">
+              <div class="eli-t">${esc(a.time || '·')} · ${esc(a.serviceName || 'Appointment')}</div>
+              <div class="eli-s">${esc(cus?.fullName || 'Customer')}${cus?.mobile ? ' · ' + esc(cus.mobile) : ''}</div>
+            </div>
+            <div class="eli-right">${appointmentStatusBadge(a.status)}</div>
+          </div>`;
+          })
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No appointments today.</p></div>`;
+
+    // Recent activity: latest attendance + latest visit
+    const recentAtt = db.attendance.filter((a) => a.employeeId === emp.id).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0];
+    const recentVisit = [...myVisits].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
+    let activity = '';
+    if (recentAtt) {
+      activity += `
+      <div class="emp-list-item">
+        <div class="eli-info">
+          <div class="eli-t">Attendance · ${fmtDate(recentAtt.date)}</div>
+          <div class="eli-s">${recentAtt.checkIn ? 'Check-in ' + esc(recentAtt.checkIn) : 'No check-in time'}</div>
+        </div>
+        <div class="eli-right">${attBadge(recentAtt.status)}</div>
+      </div>`;
+    }
+    if (recentVisit) {
+      const cus = db.customers.find((c) => c.id === recentVisit.customerId);
+      activity += `
+      <div class="emp-list-item">
+        <div class="eli-info">
+          <div class="eli-t">Visit · ${esc(recentVisit.serviceName || 'Salon Visit')}</div>
+          <div class="eli-s">${esc(cus?.fullName || 'Customer')} · ${fmtDateTime(recentVisit.visitDateTime)}</div>
+        </div>
+        <div class="eli-right">${statusBadge(recentVisit.status)}</div>
+      </div>`;
+    }
+    $('#empDashActivity').innerHTML = activity || `<div class="empty-state empty-inline"><p class="empty-text">No recent activity yet.</p></div>`;
+  }
+
+  /* ---- My Appointments ---- */
+  function renderEmpAppointments(emp) {
+    const today = todayISO();
+    let list = db.appointments.filter((a) => a.employeeId === emp.id);
+    if (empAptFilter === 'today') list = list.filter((a) => a.date === today);
+    else if (empAptFilter === 'upcoming') list = list.filter((a) => (a.status === 'Scheduled' || a.status === 'Confirmed') && a.date >= today);
+    else if (empAptFilter === 'completed') list = list.filter((a) => a.status === 'Completed');
+    list.sort((a, b) => `${b.date || ''}T${b.time || ''}`.localeCompare(`${a.date || ''}T${a.time || ''}`));
+
+    $$('#empAptFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.paf === empAptFilter));
+
+    $('#empAptList').innerHTML = list.length
+      ? list
+          .map((a) => {
+            const cus = db.customers.find((c) => c.id === a.customerId);
+            return `
+        <div class="emp-list-item">
+          <div class="eli-info">
+            <div class="eli-t">${esc(a.serviceName || 'Appointment')}</div>
+            <div class="eli-s">${esc(cus?.fullName || 'Customer')}${cus?.mobile ? ' · ' + esc(cus.mobile) : ''}</div>
+            <div class="eli-s">${fmtDate(a.date)} · ${esc(a.time || '·')}</div>
+          </div>
+          <div class="eli-right">
+            ${appointmentStatusBadge(a.status)}
+            ${a.price != null && a.price !== '' ? `<span class="eli-amount">${fmtMoney(a.price)}</span>` : ''}
+          </div>
+        </div>`;
+          })
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No ${empAptFilter === 'all' ? '' : empAptFilter + ' '}appointments found.</p></div>`;
+  }
+
+  /* ---- My Visits ---- */
+  function renderEmpVisits(emp) {
+    const list = db.visits
+      .filter((v) => v.employeeId === emp.id)
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+    $('#empVisitsList').innerHTML = list.length
+      ? list
+          .map((v) => {
+            const cus = db.customers.find((c) => c.id === v.customerId);
+            return `
+        <div class="emp-list-item">
+          <div class="eli-info">
+            <div class="eli-t">${esc(v.serviceName || 'Salon Visit')}</div>
+            <div class="eli-s">${esc(cus?.fullName || 'Customer')}${cus?.mobile ? ' · ' + esc(cus.mobile) : ''}</div>
+            <div class="eli-s">${fmtDateTime(v.visitDateTime)}</div>
+          </div>
+          <div class="eli-right">
+            ${statusBadge(v.status)}
+            ${v.amount ? `<span class="eli-amount">${fmtMoney(v.amount)}</span>` : ''}
+          </div>
+        </div>`;
+          })
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No visits assigned yet.</p></div>`;
+  }
+
+  /* ---- My Attendance ---- */
+  function renderEmpAttendance(emp) {
+    const today = todayISO();
+    const thisMonth = monthISO();
+    const todayRec = attendanceFor(emp.id, today);
+    const tt = getTimetable(emp.id);
+
+    $('#empAttCheckin').innerHTML = `
+      <div class="panel-quick-row">
+        ${
+          todayRec
+            ? `<button class="btn btn-ghost" disabled>✓ Checked in today · ${esc(todayRec.checkIn || todayRec.status)} · ${esc(todayRec.status)}</button>`
+            : `<button class="btn btn-primary" id="empAttCheckinBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Check In Now
+              </button>`
+        }
+      </div>
+      ${
+        tt
+          ? `<div class="progress-card" style="margin-bottom:14px"><div class="pg-head"><span class="pg-title">My Shift</span><span class="pg-val">${esc(tt.checkIn)} – ${esc(tt.checkOut)} · ${esc(tt.workHours)}h</span></div><p style="font-size:11.5px;color:var(--text-3);margin:0">Half day after ${esc(tt.halfDayTime)} · late over 15 min</p></div>`
+          : ''
+      }`;
+
+    const checkinBtn = $('#empAttCheckinBtn');
+    if (checkinBtn) checkinBtn.addEventListener('click', () => empCheckIn(emp.id));
+
+    const all = db.attendance.filter((a) => a.employeeId === emp.id).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    const monthRecs = all.filter((a) => String(a.date || '').slice(0, 7) === thisMonth);
+    const counts = {
+      Present: monthRecs.filter((a) => a.status === 'Present').length,
+      Late: monthRecs.filter((a) => a.status === 'Late').length,
+      Absent: monthRecs.filter((a) => a.status === 'Absent').length,
+      Half: monthRecs.filter((a) => a.status === 'Half Day').length,
+    };
+
+    $('#empAttSummary').innerHTML = `
+      <div class="ps-cell green"><div class="ps-n">${counts.Present}</div><div class="ps-l">Present</div></div>
+      <div class="ps-cell amber"><div class="ps-n">${counts.Late}</div><div class="ps-l">Late Mark</div></div>
+      <div class="ps-cell red"><div class="ps-n">${counts.Absent}</div><div class="ps-l">Absent</div></div>
+      <div class="ps-cell sky"><div class="ps-n">${counts.Half}</div><div class="ps-l">Half Day</div></div>`;
+
+    $('#empAttList').innerHTML = all.length
+      ? all
+          .map(
+            (a) => `
+        <div class="emp-list-item">
+          <div class="eli-info">
+            <div class="eli-t">${fmtDate(a.date)}</div>
+            <div class="eli-s">${a.checkIn ? 'Check-in ' + esc(a.checkIn) : 'No check-in time'}</div>
+          </div>
+          <div class="eli-right">${attBadge(a.status)}</div>
+        </div>`
+          )
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No attendance records yet.</p></div>`;
+  }
+
+  function empCheckIn(empId) {
     const t = todayISO();
     if (attendanceFor(empId, t)) {
       toast('You are already checked in today.', 'error');
@@ -4215,494 +4666,127 @@
       createdAt: now.toISOString(),
     });
     save();
-    renderAll();
+    renderEmp(empSection);
     toast(status === 'Present' ? `Checked in at ${hhmm}` : `Checked in at ${hhmm} · marked ${status}`);
   }
 
-  function attStatusBadgeLocal(status) {
-    const cls = status === 'Present' ? 'badge-green' : status === 'Late' ? 'badge-amber' : status === 'Absent' ? 'badge-red' : 'badge-sky';
-    return `<span class="badge ${cls}">${esc(status || '·')}</span>`;
-  }
-
-  function renderEmployeePanel() {
-    const emp = db.employees.find((e) => e.id === panelEmployeeId);
-    const login = $('#panelLogin');
-    const app = $('#panelApp');
-
-    if (!emp) {
-      if (panelEmployeeId) setPanelEmployee('');
-      login.hidden = false;
-      app.hidden = true;
-      renderEmployeePicker();
-      return;
-    }
-
-    login.hidden = true;
-    app.hidden = false;
-
-    // Header
-    $('#panelDashHead').innerHTML = `
-      ${avatarHTML(emp, 'avatar-lg')}
-        <div class="edh-info">
-        <div class="edh-name">${esc(emp.fullName)}</div>
-        <div class="edh-meta">${esc(emp.staffRole || 'Employee')} · ${esc(emp.shift || 'No shift')}</div>
-        <div class="edh-badges">
-          ${empStatusBadge(emp.employmentStatus)}
-          ${isTodayBirthday(emp.dob) ? '<span class="badge badge-amber">🎂 Birthday today</span>' : ''}
-        </div>
-      </div>
-      <button class="btn btn-ghost btn-sm" id="panelSignOutBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Sign Out
-      </button>`;
-    const signOutBtn = $('#panelSignOutBtn');
-    if (signOutBtn) {
-      signOutBtn.addEventListener('click', () => {
-        setPanelEmployee('');
-        toast('Signed out successfully');
-      });
-    }
-
-    // Tabs
-    $$('#panelTabs .chip').forEach((c) => c.classList.toggle('active', c.dataset.ptab === panelTab));
-
-    renderPanelTab(emp);
-  }
-
-  function renderPanelTab(emp) {
-    const root = $('#panelTabContent');
-    if (panelTab === 'appointments') root.innerHTML = panelAppointmentsHTML(emp);
-    else if (panelTab === 'attendance') {
-      root.innerHTML = panelAttendanceHTML(emp);
-      wirePanelAttendance(root, emp);
-    } else if (panelTab === 'leaves') {
-      root.innerHTML = panelLeavesHTML(emp);
-      wirePanelLeaves(root, emp);
-    } else if (panelTab === 'salary') root.innerHTML = panelSalaryHTML(emp);
-    else if (panelTab === 'profile') root.innerHTML = panelProfileHTML(emp);
-    else {
-      root.innerHTML = panelOverviewHTML(emp);
-      wirePanelOverview(root, emp);
-    }
-  }
-
-  /* ---------- Overview ---------- */
-  function panelOverviewHTML(emp) {
-    const today = todayISO();
-    const thisMonth = monthISO();
-
-    const todayRec = attendanceFor(emp.id, today);
-    const todaysApts = db.appointments
-      .filter((a) => a.employeeId === emp.id && a.date === today && a.status !== 'Cancelled')
-      .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
-    const upcoming = db.appointments.filter((a) => a.employeeId === emp.id && (a.status === 'Scheduled' || a.status === 'Confirmed') && a.date >= today);
-    const myLeaves = db.leaves.filter((l) => l.employeeId === emp.id);
-    const pendingLeaves = myLeaves.filter((l) => l.status === 'Pending');
-    const salaryThisMonth = db.salaries.find((s) => s.employeeId === emp.id && s.month === thisMonth);
-    const recentAtt = db.attendance
-      .filter((a) => a.employeeId === emp.id)
-      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
-      .slice(0, 5);
-
-    const icons = {
-      att: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
-      cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-      up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-      leave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>',
-      pay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01"/><path d="M18 12h.01"/></svg>',
-    };
-
-    const stats = [
-      { label: "Today's Attendance", value: todayRec ? todayRec.status : 'Not marked', sub: todayRec ? `Check-in ${todayRec.checkIn || '·'}` : 'Tap Check In below', icon: 'att', accent: todayRec ? 'var(--green)' : 'var(--amber)', bg: todayRec ? 'var(--green-50)' : 'var(--amber-50)' },
-      { label: "Today's Appointments", value: todaysApts.length, sub: fmtDate(today), icon: 'cal', accent: 'var(--brand)', bg: 'var(--brand-50)' },
-      { label: 'Upcoming Appointments', value: upcoming.length, sub: `${db.appointments.filter((a) => a.employeeId === emp.id).length} total`, icon: 'up', accent: 'var(--sky)', bg: 'var(--sky-50)' },
-      { label: 'Pending Leaves', value: pendingLeaves.length, sub: `${myLeaves.length} request(s) total`, icon: 'leave', accent: 'var(--amber)', bg: 'var(--amber-50)' },
-      { label: 'Salary This Month', value: salaryThisMonth ? fmtMoney(salaryThisMonth.net) : '—', sub: salaryThisMonth ? salaryStatusBadge(salaryThisMonth.status) : fmtMonth(thisMonth), icon: 'pay', accent: 'var(--violet)', bg: 'var(--violet-50)' },
-    ];
-
-    return `
-      <div class="panel-quick-row">
-        ${
-          todayRec
-            ? `<button class="btn btn-ghost" disabled>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                Checked in · ${esc(todayRec.checkIn || todayRec.status)}
-              </button>`
-            : `<button class="btn btn-primary" data-pan-act="checkin">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                Check In Now
-              </button>`
-        }
-        <button class="btn btn-ghost" data-pan-act="leave">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Request Leave
-        </button>
-      </div>
-
-      <div class="stat-grid">
-        ${stats
-          .map(
-            (s) => `
-          <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
-            <div class="stat-top"><div class="stat-icon">${icons[s.icon]}</div></div>
-            <div class="stat-value">${s.value}</div>
-            <div class="stat-label">${esc(s.label)}</div>
-            <div class="stat-sub">${s.sub}</div>
-          </div>`
-          )
-          .join('')}
-      </div>
-
-      <div class="detail-section-title">Today's Schedule</div>
-      <div class="panel">
-        <div class="panel-body">
-          ${
-            todaysApts.length
-              ? todaysApts
-                  .map((a) => {
-                    const cus = db.customers.find((c) => c.id === a.customerId);
-                    return `
-                <div class="emp-list-item">
-                  <div class="eli-info">
-                    <div class="eli-t">${esc(a.time || '·')} · ${esc(a.serviceName || 'Appointment')}</div>
-                    <div class="eli-s">${esc(cus?.fullName || 'Customer')}${cus?.mobile ? ' · ' + esc(cus.mobile) : ''}</div>
-                  </div>
-                  <div class="eli-right">
-                    ${appointmentStatusBadge(a.status)}
-                    ${a.price != null && a.price !== '' ? `<span class="eli-amount amount-green">${fmtMoney(a.price)}</span>` : ''}
-                  </div>
-                </div>`;
-                  })
-                  .join('')
-              : `<div class="empty-state empty-inline"><p class="empty-text">No appointments today.</p></div>`
-          }
-        </div>
-      </div>
-
-      <div class="detail-section-title">Recent Attendance</div>
-      <div class="panel">
-        <div class="panel-body">
-          ${
-            recentAtt.length
-              ? recentAtt
-                  .map(
-                    (a) => `
-                <div class="emp-list-item">
-                  <div class="eli-info">
-                    <div class="eli-t">${fmtDate(a.date)}</div>
-                    <div class="eli-s">${a.checkIn ? 'Check-in ' + esc(a.checkIn) : 'No check-in time'}</div>
-                  </div>
-                  <div class="eli-right">${attStatusBadgeLocal(a.status)}</div>
-                </div>`
-                  )
-                  .join('')
-              : `<div class="empty-state empty-inline"><p class="empty-text">No attendance records yet.</p></div>`
-          }
-        </div>
-      </div>`;
-  }
-
-  function wirePanelOverview(root, emp) {
-    const btn = root.querySelector('[data-pan-act="checkin"]');
-    if (btn) btn.addEventListener('click', () => employeeCheckIn(emp.id));
-    const leaveBtn = root.querySelector('[data-pan-act="leave"]');
-    if (leaveBtn) leaveBtn.addEventListener('click', () => openLeaveForm(null, { employeeId: emp.id }));
-  }
-
-  /* ---------- Appointments tab ---------- */
-  function panelAppointmentsHTML(emp) {
-    const today = todayISO();
-    let list = db.appointments.filter((a) => a.employeeId === emp.id);
-
-    if (panelAptFilter === 'today') list = list.filter((a) => a.date === today);
-    else if (panelAptFilter === 'upcoming') list = list.filter((a) => (a.status === 'Scheduled' || a.status === 'Confirmed') && a.date >= today);
-    else if (panelAptFilter === 'completed') list = list.filter((a) => a.status === 'Completed');
-
-    list.sort((a, b) => `${b.date || ''}T${b.time || ''}`.localeCompare(`${a.date || ''}T${a.time || ''}`));
-
-    return `
-      <div class="filter-chips" id="panelAptFilters">
-        <button class="chip ${panelAptFilter === 'today' ? 'active' : ''}" data-paf="today">Today</button>
-        <button class="chip ${panelAptFilter === 'upcoming' ? 'active' : ''}" data-paf="upcoming">Upcoming</button>
-        <button class="chip ${panelAptFilter === 'completed' ? 'active' : ''}" data-paf="completed">Completed</button>
-        <button class="chip ${panelAptFilter === 'all' ? 'active' : ''}" data-paf="all">All</button>
-      </div>
-      <div class="panel">
-        <div class="panel-body">
-          ${
-            list.length
-              ? list
-                  .map((a) => {
-                    const cus = db.customers.find((c) => c.id === a.customerId);
-                    return `
-                <div class="emp-list-item">
-                  <div class="eli-info">
-                    <div class="eli-t">${esc(a.serviceName || 'Appointment')}</div>
-                    <div class="eli-s">${esc(cus?.fullName || 'Customer')}${cus?.mobile ? ' · ' + esc(cus.mobile) : ''}</div>
-                    <div class="eli-s">${fmtDate(a.date)} · ${esc(a.time || '·')} · ${esc(a.id)}</div>
-                  </div>
-                  <div class="eli-right">
-                    ${appointmentStatusBadge(a.status)}
-                    ${a.price != null && a.price !== '' ? `<span class="eli-amount">${fmtMoney(a.price)}</span>` : ''}
-                  </div>
-                </div>`;
-                  })
-                  .join('')
-              : `<div class="empty-state empty-inline"><p class="empty-text">No ${panelAptFilter === 'all' ? '' : panelAptFilter + ' '}appointments found.</p></div>`
-          }
-        </div>
-      </div>`;
-  }
-
-  /* ---------- Attendance tab ---------- */
-  function panelAttendanceHTML(emp) {
-    const thisMonth = monthISO();
-    const all = db.attendance.filter((a) => a.employeeId === emp.id).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-    const monthRecs = all.filter((a) => String(a.date || '').slice(0, 7) === thisMonth);
-    const todayRec = attendanceFor(emp.id, todayISO());
-
-    const counts = {
-      Present: monthRecs.filter((a) => a.status === 'Present').length,
-      Late: monthRecs.filter((a) => a.status === 'Late').length,
-      Absent: monthRecs.filter((a) => a.status === 'Absent').length,
-      Half: monthRecs.filter((a) => a.status === 'Half Day').length,
-    };
-
-    return `
-      ${
-        todayRec
-          ? `<div class="panel-quick-row"><button class="btn btn-ghost" disabled>✓ Checked in today · ${esc(todayRec.checkIn || todayRec.status)} · ${esc(todayRec.status)}</button></div>`
-          : `<div class="panel-quick-row"><button class="btn btn-primary" data-pan-act="checkin">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              Check In Now
-            </button></div>`
-      }
-
-      <div class="detail-section-title">This Month · ${esc(fmtMonth(thisMonth))}</div>
-      <div class="panel-summary-strip">
-        <div class="ps-cell green"><div class="ps-n">${counts.Present}</div><div class="ps-l">Present</div></div>
-        <div class="ps-cell amber"><div class="ps-n">${counts.Late}</div><div class="ps-l">Late</div></div>
-        <div class="ps-cell red"><div class="ps-n">${counts.Absent}</div><div class="ps-l">Absent</div></div>
-        <div class="ps-cell sky"><div class="ps-n">${counts.Half}</div><div class="ps-l">Half Day</div></div>
-      </div>
-
-      <div class="detail-section-title">Full History</div>
-      <div class="panel">
-        <div class="panel-body">
-          ${
-            all.length
-              ? all
-                  .map(
-                    (a) => `
-                <div class="emp-list-item">
-                  <div class="eli-info">
-                    <div class="eli-t">${fmtDate(a.date)}</div>
-                    <div class="eli-s">${a.checkIn ? 'Check-in ' + esc(a.checkIn) : 'No check-in time'}${a.notes ? ' · ' + esc(a.notes) : ''}</div>
-                  </div>
-                  <div class="eli-right">${attStatusBadgeLocal(a.status)}</div>
-                </div>`
-                  )
-                  .join('')
-              : `<div class="empty-state empty-inline"><p class="empty-text">No attendance records yet.</p></div>`
-          }
-        </div>
-      </div>`;
-  }
-
-  function wirePanelAttendance(root, emp) {
-    const btn = root.querySelector('[data-pan-act="checkin"]');
-    if (btn) btn.addEventListener('click', () => employeeCheckIn(emp.id));
-  }
-
-  /* ---------- Leaves tab ---------- */
-  function panelLeavesHTML(emp) {
+  /* ---- My Leaves ---- */
+  function renderEmpLeaves(emp) {
     const all = db.leaves.filter((l) => l.employeeId === emp.id).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
     const pending = all.filter((l) => l.status === 'Pending').length;
     const approvedDays = all.filter((l) => l.status === 'Approved').reduce((t, l) => t + daysBetween(l.fromDate, l.toDate), 0);
 
-    return `
-      <div class="panel-quick-row">
-        <button class="btn btn-primary" data-pan-act="leave">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Request Leave
-        </button>
-      </div>
+    $('#empLeaveSummary').innerHTML = `
+      <div class="ps-cell"><div class="ps-n">${all.length}</div><div class="ps-l">Total</div></div>
+      <div class="ps-cell amber"><div class="ps-n">${pending}</div><div class="ps-l">Pending</div></div>
+      <div class="ps-cell green"><div class="ps-n">${approvedDays}</div><div class="ps-l">Approved Days</div></div>`;
 
-      <div class="panel-summary-strip" style="grid-template-columns: repeat(3, 1fr);">
-        <div class="ps-cell"><div class="ps-n">${all.length}</div><div class="ps-l">Total</div></div>
-        <div class="ps-cell amber"><div class="ps-n">${pending}</div><div class="ps-l">Pending</div></div>
-        <div class="ps-cell green"><div class="ps-n">${approvedDays}</div><div class="ps-l">Approved Days</div></div>
-      </div>
-
-      <div class="detail-section-title">My Requests</div>
-      <div class="panel">
-        <div class="panel-body">
-          ${
-            all.length
-              ? all
-                  .map(
-                    (l) => `
-                <div class="emp-list-item">
-                  <div class="eli-info">
-                    <div class="eli-t">${esc(l.type || 'Leave')} · ${daysBetween(l.fromDate, l.toDate)} day(s)</div>
-                    <div class="eli-s">${fmtDate(l.fromDate)} → ${fmtDate(l.toDate)}</div>
-                    ${l.reason ? `<div class="eli-s">${esc(l.reason)}</div>` : ''}
-                  </div>
-                  <div class="eli-right">${leaveStatusBadge(l.status)}</div>
-                </div>`
-                  )
-                  .join('')
-              : `<div class="empty-state empty-inline"><p class="empty-text">No leave requests yet. Tap "Request Leave" to apply.</p></div>`
-          }
-        </div>
-      </div>`;
+    $('#empLeaveList').innerHTML = all.length
+      ? all
+          .map(
+            (l) => `
+        <div class="emp-list-item">
+          <div class="eli-info">
+            <div class="eli-t">${esc(l.type || 'Leave')} · ${daysBetween(l.fromDate, l.toDate)} day(s)</div>
+            <div class="eli-s">${fmtDate(l.fromDate)} → ${fmtDate(l.toDate)}</div>
+            ${l.reason ? `<div class="eli-s">${esc(l.reason)}</div>` : ''}
+          </div>
+          <div class="eli-right">${leaveStatusBadge(l.status)}</div>
+        </div>`
+          )
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No leave requests yet. Tap "Request Leave" to apply.</p></div>`;
   }
 
-  function wirePanelLeaves(root, emp) {
-    const btn = root.querySelector('[data-pan-act="leave"]');
-    if (btn) btn.addEventListener('click', () => openLeaveForm(null, { employeeId: emp.id }));
-  }
-
-  /* ---------- Salary tab ---------- */
-  function panelSalaryHTML(emp) {
+  /* ---- My Salary ---- */
+  function renderEmpSalary(emp) {
     const all = db.salaries.filter((s) => s.employeeId === emp.id).sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
     const paid = all.filter((s) => s.status === 'Paid');
     const totalPaid = paid.reduce((t, s) => t + num(s.net), 0);
     const pendingAmt = all.filter((s) => s.status === 'Pending').reduce((t, s) => t + num(s.net), 0);
     const totalBonus = all.reduce((t, s) => t + num(s.bonus), 0);
 
-    return `
-      <div class="panel-summary-strip">
-        <div class="ps-cell green"><div class="ps-n">${fmtMoney(totalPaid)}</div><div class="ps-l">Total Paid</div></div>
-        <div class="ps-cell amber"><div class="ps-n">${fmtMoney(pendingAmt)}</div><div class="ps-l">Pending</div></div>
-        <div class="ps-cell"><div class="ps-n">${all.length}</div><div class="ps-l">Records</div></div>
-        <div class="ps-cell sky"><div class="ps-n">${fmtMoney(totalBonus)}</div><div class="ps-l">Bonuses</div></div>
-      </div>
+    $('#empSalarySummary').innerHTML = `
+      <div class="ps-cell green"><div class="ps-n">${fmtMoney(totalPaid)}</div><div class="ps-l">Total Paid</div></div>
+      <div class="ps-cell amber"><div class="ps-n">${fmtMoney(pendingAmt)}</div><div class="ps-l">Pending</div></div>
+      <div class="ps-cell"><div class="ps-n">${all.length}</div><div class="ps-l">Records</div></div>
+      <div class="ps-cell sky"><div class="ps-n">${fmtMoney(totalBonus)}</div><div class="ps-l">Bonuses</div></div>`;
 
-      <div class="detail-section-title">Salary History</div>
-      <div class="panel">
-        <div class="panel-body">
-          ${
-            all.length
-              ? all
-                  .map(
-                    (s) => `
-                <div class="emp-list-item">
-                  <div class="eli-info">
-                    <div class="eli-t">${esc(fmtMonth(s.month))}</div>
-                    <div class="eli-s">Basic ${fmtMoney(s.basic)}${num(s.bonus) ? ' · Bonus +' + fmtMoney(s.bonus) : ''}${num(s.deductions) ? ' · Deductions -' + fmtMoney(s.deductions) : ''}</div>
-                    <div class="eli-s">${esc(s.id)}${s.paidDate ? ' · Paid ' + fmtDate(s.paidDate) : ''} · ${esc(s.method || '·')}</div>
-                  </div>
-                  <div class="eli-right">
-                    <span class="eli-amount">${fmtMoney(s.net)}</span>
-                    ${salaryStatusBadge(s.status)}
-                  </div>
-                </div>`
-                  )
-                  .join('')
-              : `<div class="empty-state empty-inline"><p class="empty-text">No salary records yet.</p></div>`
-          }
-        </div>
-      </div>`;
+    $('#empSalaryList').innerHTML = all.length
+      ? all
+          .map(
+            (s) => `
+        <div class="emp-list-item">
+          <div class="eli-info">
+            <div class="eli-t">${esc(fmtMonth(s.month))}</div>
+            <div class="eli-s">Basic ${fmtMoney(s.basic)}${num(s.bonus) ? ' · Bonus +' + fmtMoney(s.bonus) : ''}${num(s.deductions) ? ' · Deductions -' + fmtMoney(s.deductions) : ''}</div>
+            <div class="eli-s">${s.paidDate ? 'Paid ' + fmtDate(s.paidDate) : ''} · ${esc(s.method || '·')}</div>
+          </div>
+          <div class="eli-right">
+            <span class="eli-amount">${fmtMoney(s.net)}</span>
+            ${salaryStatusBadge(s.status)}
+          </div>
+        </div>`
+          )
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No salary records yet.</p></div>`;
   }
 
-  /* ---------- Profile tab ---------- */
-  function panelProfileHTML(emp) {
+  /* ---- My Profile ---- */
+  function renderEmpProfile(emp) {
     const visitsDone = db.visits.filter((v) => v.employeeId === emp.id && v.status === 'Completed').length;
     const totalApts = db.appointments.filter((a) => a.employeeId === emp.id).length;
 
-    return `
+    $('#empProfileHero').innerHTML = `
       <div class="profile-hero">
         ${avatarHTML(emp, 'avatar-xl')}
         <div class="profile-hero-info">
           <h2>${esc(emp.fullName)}</h2>
-          <div class="role">${esc(emp.staffRole || 'Employee')} · ${esc(emp.specialties || emp.id)}</div>
+          <div class="role">${esc(emp.staffRole || 'Employee')} · ${esc(emp.specialties || '')}</div>
           <div class="badges">
             <span class="badge badge-brand">${esc(emp.id)}</span>
             ${empStatusBadge(emp.employmentStatus)}
             <span class="badge badge-gray">${visitsDone} visits · ${totalApts} appointments</span>
           </div>
         </div>
-      </div>
-
-      <div class="detail-section-title">Personal Information</div>
-      <div class="detail-grid">
-        <div class="detail-item"><div class="label">Date of Birth</div><div class="value">${fmtDate(emp.dob)}${isTodayBirthday(emp.dob) ? ' · 🎂 Today!' : ''}</div></div>
-        <div class="detail-item"><div class="label">Gender</div><div class="value">${esc(emp.gender || '·')}</div></div>
-        <div class="detail-item"><div class="label">Mobile Number</div><div class="value">${esc(emp.mobile || '·')}</div></div>
-        <div class="detail-item span-2"><div class="label">Address</div><div class="value">${esc(emp.address || '·')}</div></div>
-      </div>
-
-      <div class="detail-section-title">Employment</div>
-      <div class="detail-grid">
-        <div class="detail-item"><div class="label">Staff Role</div><div class="value">${esc(emp.staffRole || '·')}</div></div>
-        <div class="detail-item"><div class="label">Specialties / Services</div><div class="value">${esc(emp.specialties || '·')}</div></div>
-        <div class="detail-item"><div class="label">Experience (Years)</div><div class="value">${esc(emp.experienceYears || '·')}</div></div>
-        <div class="detail-item"><div class="label">Monthly Salary</div><div class="value">${emp.salary ? fmtMoney(emp.salary) : '·'}</div></div>
-        <div class="detail-item"><div class="label">Shift</div><div class="value">${esc(emp.shift || '·')}</div></div>
-        <div class="detail-item"><div class="label">Joining Date</div><div class="value">${fmtDate(emp.joiningDate)}</div></div>
-        <div class="detail-item"><div class="label">Employment Status</div><div class="value">${empStatusBadge(emp.employmentStatus)}</div></div>
-        <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(emp.notes || '·')}</div></div>
       </div>`;
+
+    $('#empProfilePersonal').innerHTML = `
+      <div class="detail-item"><div class="label">Employee ID</div><div class="value"><strong style="color:var(--brand)">${esc(emp.id)}</strong></div></div>
+      <div class="detail-item"><div class="label">Date of Birth</div><div class="value">${fmtDate(emp.dob)}${isTodayBirthday(emp.dob) ? ' · 🎂 Today!' : ''}</div></div>
+      <div class="detail-item"><div class="label">Gender</div><div class="value">${esc(emp.gender || '·')}</div></div>
+      <div class="detail-item"><div class="label">Mobile Number</div><div class="value">${esc(emp.mobile || '·')}</div></div>
+      <div class="detail-item span-2"><div class="label">Address</div><div class="value">${esc(emp.address || '·')}</div></div>`;
+
+    $('#empProfileEmployment').innerHTML = `
+      <div class="detail-item"><div class="label">Staff Role</div><div class="value">${esc(emp.staffRole || '·')}</div></div>
+      <div class="detail-item"><div class="label">Specialties / Services</div><div class="value">${esc(emp.specialties || '·')}</div></div>
+      <div class="detail-item"><div class="label">Experience (Years)</div><div class="value">${esc(emp.experienceYears || '·')}</div></div>
+      <div class="detail-item"><div class="label">Monthly Salary</div><div class="value">${emp.salary ? fmtMoney(emp.salary) : '·'}</div></div>
+      <div class="detail-item"><div class="label">Shift</div><div class="value">${esc(emp.shift || '·')}</div></div>
+      <div class="detail-item"><div class="label">Joining Date</div><div class="value">${fmtDate(emp.joiningDate)}</div></div>
+      <div class="detail-item"><div class="label">Employment Status</div><div class="value">${empStatusBadge(emp.employmentStatus)}</div></div>
+      <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(emp.notes || '·')}</div></div>`;
   }
 
-  /* ---------- Sign-in picker ---------- */
-  function renderEmployeePicker() {
-    const q = panelEmployeeSearch.toLowerCase();
-    const list = db.employees.filter((e) => !q || (e.fullName || '').toLowerCase().includes(q) || (e.staffRole || '').toLowerCase().includes(q) || e.id.toLowerCase().includes(q));
-
-    const grid = $('#panelEmpGrid');
-    const empty = $('#panelPickEmpty');
-    const noMatch = $('#panelPickNoMatch');
-
-    if (!db.employees.length) {
-      grid.innerHTML = '';
-      empty.style.display = 'block';
-      noMatch.style.display = 'none';
-      return;
-    }
-    empty.style.display = 'none';
-    noMatch.style.display = list.length ? 'none' : 'block';
-    if (!list.length) {
-      grid.innerHTML = '';
-      return;
-    }
-
-    grid.innerHTML = list
-      .map(
-        (e) => `
-      <button type="button" class="emp-pick-card" data-id="${esc(e.id)}">
-        ${avatarHTML(e, 'avatar-lg')}
-        <div class="emp-pick-info">
-          <h4>${esc(e.fullName)}</h4>
-          <p>${esc(e.staffRole || 'Employee')}${e.shift ? ' · ' + esc(e.shift) : ''}</p>
-          ${empStatusBadge(e.employmentStatus)}
-        </div>
-        <span class="emp-pick-arrow">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        </span>
-      </button>`
-      )
-      .join('');
-
-    $$('#panelEmpGrid .emp-pick-card').forEach((card) => {
-      card.addEventListener('click', () => {
-        setPanelEmployee(card.dataset.id);
-        toast(`Welcome, ${db.employees.find((x) => x.id === card.dataset.id)?.fullName || 'employee'}!`);
-      });
-    });
+  function closeEmpSidebar() {
+    const sb = $('#empSidebar');
+    const bd = $('#empSidebarBackdrop');
+    if (sb) sb.classList.remove('open');
+    if (bd) bd.classList.remove('show');
   }
-
 
   /* ================= INIT ================= */
   function init() {
-    // Today chip
-    $('#todayChip').textContent = new Date().toLocaleDateString('en-GB', {
+    // Today chips (admin + employee shells)
+    const todayStr = new Date().toLocaleDateString('en-GB', {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
       year: 'numeric',
     });
+    $('#todayChip').textContent = todayStr;
+    $('#empTodayChip').textContent = todayStr;
 
     // Nav
     $$('.nav-item').forEach((btn) => {
@@ -4745,9 +4829,12 @@
       if (fn) fn();
     });
 
-    // Global search
-    $('#globalSearchBtn').addEventListener('click', openGlobalSearch);
+    // Global search (admin only)
+    $('#globalSearchBtn').addEventListener('click', () => {
+      if (isAdmin()) openGlobalSearch();
+    });
     document.addEventListener('keydown', (e) => {
+      if (!isAdmin()) return;
       const tag = (e.target && e.target.tagName) || '';
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable);
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
@@ -4795,17 +4882,6 @@
       renderEmployees();
     });
 
-    // Employee Panel (employee dashboard)
-    $('#panelEmpSearch').addEventListener('input', (e) => {
-      panelEmployeeSearch = e.target.value;
-      renderEmployeePicker();
-    });
-    $$('#panelTabs .chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        panelTab = chip.dataset.ptab;
-        renderEmployeePanel();
-      });
-    });
 
     // Customer
     $('#addCustomerBtn').addEventListener('click', () => openCustomerForm());
@@ -4820,9 +4896,9 @@
       visitSearch = e.target.value;
       renderVisits();
     });
-    $$('#visitFilters .chip').forEach((chip) => {
+    $$( '#visitFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
-        $$('#visitFilters .chip').forEach((c) => c.classList.remove('active'));
+        $$( '#visitFilters .chip').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
         visitFilterStatus = chip.dataset.status;
         renderVisits();
@@ -4835,9 +4911,9 @@
       appointmentSearch = e.target.value;
       renderAppointments();
     });
-    $$('#appointmentFilters .chip').forEach((chip) => {
+    $$( '#appointmentFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
-        $$('#appointmentFilters .chip').forEach((c) => c.classList.remove('active'));
+        $$( '#appointmentFilters .chip').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
         appointmentFilterStatus = chip.dataset.status;
         renderAppointments();
@@ -4850,9 +4926,9 @@
       paymentSearch = e.target.value;
       renderPayments();
     });
-    $$('#paymentFilters .chip').forEach((chip) => {
+    $$( '#paymentFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
-        $$('#paymentFilters .chip').forEach((c) => c.classList.remove('active'));
+        $$( '#paymentFilters .chip').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
         if (chip.dataset.method) {
           paymentFilterMethod = chip.dataset.method;
@@ -4871,9 +4947,9 @@
       expenseSearch = e.target.value;
       renderExpenses();
     });
-    $$('#expenseFilters .chip').forEach((chip) => {
+    $$( '#expenseFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
-        $$('#expenseFilters .chip').forEach((c) => c.classList.remove('active'));
+        $$( '#expenseFilters .chip').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
         expenseFilterCat = chip.dataset.cat;
         renderExpenses();
@@ -4898,9 +4974,9 @@
       leaveSearch = e.target.value;
       renderLeaves();
     });
-    $$('#leaveFilters .chip').forEach((chip) => {
+    $$( '#leaveFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
-        $$('#leaveFilters .chip').forEach((c) => c.classList.remove('active'));
+        $$( '#leaveFilters .chip').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
         leaveFilterStatus = chip.dataset.status;
         renderLeaves();
@@ -4913,9 +4989,9 @@
       salarySearch = e.target.value;
       renderSalary();
     });
-    $$('#salaryFilters .chip').forEach((chip) => {
+    $$( '#salaryFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
-        $$('#salaryFilters .chip').forEach((c) => c.classList.remove('active'));
+        $$( '#salaryFilters .chip').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
         salaryFilterStatus = chip.dataset.status;
         renderSalary();
@@ -4923,9 +4999,9 @@
     });
 
     // Birthdays
-    $$('#birthdayFilters .chip').forEach((chip) => {
+    $$( '#birthdayFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
-        $$('#birthdayFilters .chip').forEach((c) => c.classList.remove('active'));
+        $$( '#birthdayFilters .chip').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
         birthdayFilter = chip.dataset.btype;
         renderBirthdays();
@@ -4939,8 +5015,72 @@
       renderServices();
     });
 
-    // First render
-    goto('dashboard');
+    // ---- Login screen ----
+    $$('#loginTabs .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        $$('#loginTabs .chip').forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        const role = chip.dataset.lrole;
+        $('#loginAdminPane').hidden = role !== 'admin';
+        $('#loginEmpPane').hidden = role !== 'employee';
+        if (role === 'employee') renderLoginEmployees();
+      });
+    });
+
+    $('#adminLoginForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const pw = $('#adminPasswordInput').value;
+      if (adminLogin(pw)) $('#adminPasswordInput').value = '';
+    });
+
+    $('#loginEmpSearch').addEventListener('input', (e) => {
+      loginEmpSearch = e.target.value;
+      renderLoginEmployees();
+    });
+
+    // ---- Employee shell navigation ----
+    $$('#empApp .nav-item').forEach((btn) => {
+      btn.addEventListener('click', () => empGoto(btn.dataset.empSection));
+    });
+    $$('#empBottomNav [data-emp-section]').forEach((btn) => {
+      btn.addEventListener('click', () => empGoto(btn.dataset.empSection));
+    });
+
+    const empSidebar = $('#empSidebar');
+    const empBackdrop = $('#empSidebarBackdrop');
+    $('#empMenuToggle').addEventListener('click', () => {
+      const open = empSidebar.classList.toggle('open');
+      empBackdrop.classList.toggle('show', open);
+    });
+    $('#empBottomMenuBtn').addEventListener('click', () => {
+      const open = empSidebar.classList.toggle('open');
+      empBackdrop.classList.toggle('show', open);
+    });
+    empBackdrop.addEventListener('click', closeEmpSidebar);
+
+    // Employee dashboard quick actions
+    $('#empQaCheckin').addEventListener('click', () => {
+      const emp = currentEmployee();
+      if (emp) empCheckIn(emp.id);
+    });
+    $('#empQaLeave').addEventListener('click', () => {
+      const emp = currentEmployee();
+      if (emp) openLeaveForm(null, { employeeId: emp.id });
+    });
+    $('#empLeaveRequestBtn').addEventListener('click', () => {
+      const emp = currentEmployee();
+      if (emp) openLeaveForm(null, { employeeId: emp.id });
+    });
+    $$('#empAptFilters .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        empAptFilter = chip.dataset.paf;
+        const emp = currentEmployee();
+        if (emp) renderEmpAppointments(emp);
+      });
+    });
+
+    // ---- Boot: route by role ----
+    route();
   }
 
   document.addEventListener('DOMContentLoaded', init);
