@@ -249,6 +249,17 @@
     modalStack.push({ wrap, close });
 
     if (onOpen) onOpen(wrap, close);
+
+    // Auto-focus first field on desktop (pointer:fine) — avoids popping mobile keyboards
+    try {
+      if (window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
+        const first = wrap.querySelector('.modal-body input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), .modal-body select, .modal-body textarea');
+        if (first && typeof first.focus === 'function') first.focus();
+      }
+    } catch {
+      /* ignore */
+    }
+
     return { wrap, close };
   }
 
@@ -381,6 +392,107 @@
     };
   }
 
+  /* ---------------- Global search ---------------- */
+  function searchAll(q) {
+    const results = [];
+    const match = (v) => String(v || '').toLowerCase().includes(q);
+
+    db.customers
+      .filter((c) => match(c.fullName) || match(c.mobile) || match(c.email) || match(c.id))
+      .slice(0, 4)
+      .forEach((c) => results.push({ type: 'customer', id: c.id, title: c.fullName, meta: `${c.mobile || ''}${c.email ? ' · ' + c.email : ''}`, badge: c.id, icon: 'user' }));
+
+    db.employees
+      .filter((e) => match(e.fullName) || match(e.staffRole) || match(e.mobile) || match(e.id))
+      .slice(0, 4)
+      .forEach((e) => results.push({ type: 'employee', id: e.id, title: e.fullName, meta: `${e.staffRole || 'Employee'} · ${e.mobile || e.id}`, badge: e.id, icon: 'users' }));
+
+    db.services
+      .filter((s) => match(s.name) || match(s.category) || match(s.id))
+      .slice(0, 3)
+      .forEach((s) => results.push({ type: 'service', id: s.id, title: s.name, meta: `${s.category || 'General'}${s.price != null && s.price !== '' ? ' · ' + fmtMoney(s.price) : ''}`, badge: s.id, icon: 'tool' }));
+
+    db.appointments
+      .filter((a) => {
+        const cus = db.customers.find((c) => c.id === a.customerId);
+        return match(a.id) || match(a.serviceName) || match(cus?.fullName);
+      })
+      .slice(0, 3)
+      .forEach((a) => {
+        const cus = db.customers.find((c) => c.id === a.customerId);
+        results.push({ type: 'appointment', id: a.id, title: a.serviceName || 'Appointment', meta: `${cus?.fullName || 'Customer'} · ${fmtDate(a.date)} ${a.time || ''}`, badge: a.id, icon: 'calendar' });
+      });
+
+    return results;
+  }
+
+  const GS_ICONS = {
+    user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>',
+    tool: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+    calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  };
+
+  function openGlobalSearch() {
+    openModal({
+      title: 'Search',
+      subtitle: 'Customers, employees, services & appointments',
+      size: 'sm',
+      body: `
+        <div class="search-box" style="height:46px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="gsInput" placeholder="Type a name, mobile, ID or service..." autocomplete="off" />
+        </div>
+        <div class="gs-results" id="gsResults"></div>`,
+      onOpen: (wrap, close) => {
+        const input = $('#gsInput', wrap);
+        const results = $('#gsResults', wrap);
+
+        const run = () => {
+          const q = input.value.trim().toLowerCase();
+          if (!q) {
+            results.innerHTML = `<div class="gs-hint">Start typing to search across the whole system — customers, employees, services and appointments.</div>`;
+            return;
+          }
+          const items = searchAll(q);
+          if (!items.length) {
+            results.innerHTML = `<div class="gs-hint">No matches for "<strong>${esc(input.value.trim())}</strong>".</div>`;
+            return;
+          }
+          results.innerHTML = items
+            .map(
+              (r) => `
+            <div class="ac-item" data-gs-type="${r.type}" data-gs-id="${esc(r.id)}" role="button" tabindex="0">
+              <span class="avatar" style="width:32px;height:32px;font-size:12px">${GS_ICONS[r.icon] || ''}</span>
+              <div class="ac-info">
+                <div class="ac-name">${esc(r.title)}</div>
+                <div class="ac-meta">${esc(r.meta)}</div>
+              </div>
+              <span class="badge badge-gray">${esc(r.badge)}</span>
+            </div>`
+            )
+            .join('');
+        };
+
+        input.addEventListener('input', run);
+        results.addEventListener('click', (e) => {
+          const item = e.target.closest('[data-gs-type]');
+          if (!item) return;
+          const type = item.dataset.gsType;
+          const id = item.dataset.gsId;
+          close();
+          if (type === 'customer') viewCustomer(id);
+          else if (type === 'employee') viewEmployee(id);
+          else if (type === 'service') goto('services');
+          else if (type === 'appointment') viewAppointment(id);
+        });
+
+        run();
+        input.focus();
+      },
+    });
+  }
+
   /* ---------------- Navigation ---------------- */
   const SECTIONS = {
     dashboard: { title: 'Dashboard', sub: 'Overview of your management system' },
@@ -404,10 +516,12 @@
   function goto(section) {
     currentSection = section;
     $$('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
+    $$('.bottom-nav [data-section]').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
     $$('.section').forEach((s) => s.classList.toggle('active', s.id === `section-${section}`));
     $('#pageTitle').textContent = SECTIONS[section].title;
     $('#pageSubtitle').textContent = SECTIONS[section].sub;
     render(section);
+    updateNavBadges();
   }
 
   /* ---------------- Render dispatch ---------------- */
@@ -460,6 +574,21 @@
 
   function renderAll() {
     render(currentSection);
+    updateNavBadges();
+  }
+
+  function updateNavBadges() {
+    const today = todayISO();
+    const set = (key, n) => {
+      const el = $('#navBadge-' + key);
+      if (!el) return;
+      el.hidden = !n;
+      el.textContent = n;
+    };
+    set('appointments', db.appointments.filter((a) => a.date === today && (a.status === 'Scheduled' || a.status === 'Confirmed')).length);
+    set('leaves', db.leaves.filter((l) => l.status === 'Pending').length);
+    const markedToday = new Set(db.attendance.filter((a) => a.date === today).map((a) => a.employeeId));
+    set('attendance', Math.max(db.employees.length - markedToday.size, 0));
   }
 
   /* ================= DASHBOARD ================= */
@@ -472,11 +601,11 @@
     const activeServices = db.services.filter((s) => s.status === 'Active').length;
 
     const stats = [
-      { label: 'Total Employees', value: empCount, sub: `${db.employees.filter((e) => e.employmentStatus === 'Active').length} active`, icon: 'users', accent: 'var(--brand)', bg: 'var(--brand-50)' },
-      { label: 'Total Customers', value: cusCount, sub: `${db.customers.length} records`, icon: 'user', accent: 'var(--sky)', bg: 'var(--sky-50)' },
-      { label: 'Open Visits', value: openVisits, sub: `${visitCount} total visits`, icon: 'calendar', accent: 'var(--violet)', bg: 'var(--violet-50)' },
-      { label: "Today's Birthdays", value: todayB, sub: todayB ? 'Celebrate today!' : 'None today', icon: 'cake', accent: 'var(--amber)', bg: 'var(--amber-50)' },
-      { label: 'Active Services', value: activeServices, sub: `${db.services.length} total services`, icon: 'tool', accent: 'var(--green)', bg: 'var(--green-50)' },
+      { label: 'Total Employees', value: empCount, sub: `${db.employees.filter((e) => e.employmentStatus === 'Active').length} active`, icon: 'users', accent: 'var(--brand)', bg: 'var(--brand-50)', goto: 'employees' },
+      { label: 'Total Customers', value: cusCount, sub: `${db.customers.length} records`, icon: 'user', accent: 'var(--sky)', bg: 'var(--sky-50)', goto: 'customers' },
+      { label: 'Open Visits', value: openVisits, sub: `${visitCount} total visits`, icon: 'calendar', accent: 'var(--violet)', bg: 'var(--violet-50)', goto: 'visits' },
+      { label: "Today's Birthdays", value: todayB, sub: todayB ? 'Celebrate today!' : 'None today', icon: 'cake', accent: 'var(--amber)', bg: 'var(--amber-50)', goto: 'birthdays' },
+      { label: 'Active Services', value: activeServices, sub: `${db.services.length} total services`, icon: 'tool', accent: 'var(--green)', bg: 'var(--green-50)', goto: 'services' },
     ];
 
     const icons = {
@@ -491,7 +620,7 @@
     $('#statGrid').innerHTML = stats
       .map(
         (s) => `
-      <div class="stat-card" style="--stat-accent:${s.accent};--stat-bg:${s.bg}">
+      <div class="stat-card clickable" data-goto="${s.goto}" style="--stat-accent:${s.accent};--stat-bg:${s.bg}" role="button" tabindex="0">
         <div class="stat-top">
           <div class="stat-icon">${icons[s.icon]}</div>
         </div>
@@ -501,6 +630,62 @@
       </div>`
       )
       .join('');
+
+    // Setup checklist — guide new users until core data exists
+    const setupWrap = $('#setupChecklist');
+    const setupSteps = $('#setupSteps');
+    const missing = [];
+    if (!db.services.length) missing.push({ id: 'service', title: 'Add your services', sub: 'Haircut, color, spa — with prices', action: 'service' });
+    if (!db.employees.length) missing.push({ id: 'employee', title: 'Add your employees', sub: 'Stylists, barbers, staff', action: 'employee' });
+    if (!db.customers.length) missing.push({ id: 'customer', title: 'Add your first customer', sub: 'Then book appointments anytime', action: 'customer' });
+
+    if (missing.length) {
+      setupWrap.hidden = false;
+      setupSteps.innerHTML = missing
+        .map(
+          (m, i) => `
+        <div class="setup-step">
+          <span class="num">${i + 1}</span>
+          <div class="lbl">${esc(m.title)}<small>${esc(m.sub)}</small></div>
+          <button class="btn btn-primary btn-sm" data-setup="${m.action}">Add</button>
+        </div>`
+        )
+        .join('');
+      $$('#setupSteps [data-setup]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const a = btn.dataset.setup;
+          if (a === 'service') openServiceForm();
+          else if (a === 'employee') openEmployeeForm();
+          else if (a === 'customer') openCustomerForm();
+        });
+      });
+    } else {
+      setupWrap.hidden = true;
+      setupSteps.innerHTML = '';
+    }
+
+    // Today's schedule
+    const today = todayISO();
+    const todays = db.appointments
+      .filter((a) => a.date === today)
+      .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+    $('#dashToday').innerHTML = todays.length
+      ? todays
+          .slice(0, 6)
+          .map((a) => {
+            const cus = db.customers.find((c) => c.id === a.customerId);
+            const emp = db.employees.find((e) => e.id === a.employeeId);
+            return `
+          <div class="mini-row">
+            <div class="info">
+              <div class="t">${esc(a.time || '·')} · ${esc(a.serviceName || 'Appointment')}</div>
+              <div class="s">${esc(cus?.fullName || 'Customer')}${emp ? ' · ' + esc(emp.fullName) : ''}</div>
+            </div>
+            ${appointmentStatusBadge(a.status)}
+          </div>`;
+          })
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No appointments today. Book one from quick actions above.</p></div>`;
 
     // Upcoming birthdays (next 5)
     const bdays = getUpcomingBirthdays().slice(0, 5);
@@ -513,7 +698,7 @@
             ${avatarHTML(b.person)}
             <div class="info">
               <div class="t">${esc(b.person.fullName)}</div>
-              <div class="s">${b.type === 'employee' ? 'Employee' : 'Customer'} Â· ${fmtDate(b.person.dob)}</div>
+              <div class="s">${b.type === 'employee' ? 'Employee' : 'Customer'} · ${fmtDate(b.person.dob)}</div>
             </div>
             <span class="badge ${b.days === 0 ? 'badge-amber' : b.days <= 7 ? 'badge-brand' : 'badge-gray'}">${pill}</span>
           </div>`;
@@ -4095,6 +4280,62 @@
 
     $$('[data-goto]').forEach((btn) => {
       btn.addEventListener('click', () => goto(btn.dataset.goto));
+    });
+
+    // Dynamic data-goto (dashboard stat cards) — delegation
+    $('#statGrid').addEventListener('click', (e) => {
+      const t = e.target.closest('[data-goto]');
+      if (t) goto(t.dataset.goto);
+    });
+
+    // Quick actions (dashboard)
+    $('#qaAppointment').addEventListener('click', () => openAppointmentForm());
+    $('#qaCustomer').addEventListener('click', () => openCustomerForm());
+    $('#qaVisit').addEventListener('click', () => openVisitForm());
+    $('#qaAttendance').addEventListener('click', () => goto('attendance'));
+    $('#qaPayment').addEventListener('click', () => openPaymentForm());
+
+    // Empty-state CTA buttons — one delegated handler
+    const emptyCtaActions = {
+      employeeEmpty: () => openEmployeeForm(),
+      customerEmpty: () => openCustomerForm(),
+      visitEmpty: () => openVisitForm(),
+      appointmentEmpty: () => openAppointmentForm(),
+      serviceEmpty: () => openServiceForm(),
+      paymentEmpty: () => openPaymentForm(),
+      expenseEmpty: () => openExpenseForm(),
+      maintenanceEmpty: () => openMaintenanceForm(),
+      attendanceEmpty: () => openEmployeeForm(),
+      leaveEmpty: () => openLeaveForm(),
+      salaryEmpty: () => openSalaryForm(),
+    };
+    $('#content').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-empty-cta]');
+      if (!btn) return;
+      const fn = emptyCtaActions[btn.dataset.emptyCta];
+      if (fn) fn();
+    });
+
+    // Global search
+    $('#globalSearchBtn').addEventListener('click', openGlobalSearch);
+    document.addEventListener('keydown', (e) => {
+      const tag = (e.target && e.target.tagName) || '';
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable);
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        openGlobalSearch();
+      } else if (e.key === '/' && !typing && !modalStack.length) {
+        e.preventDefault();
+        openGlobalSearch();
+      }
+    });
+
+    // Mobile bottom navigation
+    $$('.bottom-nav [data-section]').forEach((btn) => {
+      btn.addEventListener('click', () => goto(btn.dataset.section));
+    });
+    $('#bottomMenuBtn').addEventListener('click', () => {
+      $('#menuToggle').click();
     });
 
     // Mobile menu
