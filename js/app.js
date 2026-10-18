@@ -4225,11 +4225,7 @@
     const empApp = $('#empApp');
 
     if (!session) {
-      login.hidden = false;
-      adminApp.style.display = 'none';
-      empApp.hidden = true;
-      renderLoginEmployees();
-      return;
+      saveSession({ role: 'admin', loggedInAt: new Date().toISOString() });
     }
 
     login.hidden = true;
@@ -4872,6 +4868,10 @@
       if (window.innerWidth <= 860 && sidebar.classList.contains('open') && !sidebar.contains(e.target) && !e.target.closest('#menuToggle') && !e.target.closest('#sidebarBackdrop')) {
         closeSidebar();
       }
+    });
+
+    $('#adminSignoutBtn').addEventListener('click', () => {
+      logout();
     });
 
     // Employee
