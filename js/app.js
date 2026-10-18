@@ -816,6 +816,7 @@
   let employeeSearch = '';
 
   function renderEmployees() {
+    $('#addEmployeeBtn').style.display = db.employees.length ? '' : 'none';
 
     const q = employeeSearch.toLowerCase();
     const list = db.employees.filter(
@@ -1673,6 +1674,7 @@
   let visitFilterStatus = 'all';
 
   function renderVisits() {
+    $('#addVisitBtn').style.display = db.visits.length ? '' : 'none';
 
     const q = visitSearch.toLowerCase();
     let list = [...db.visits].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -4873,6 +4875,7 @@
     });
 
     // Employee
+    $('#addEmployeeBtn').addEventListener('click', () => openEmployeeForm());
     $('#employeeSearch').addEventListener('input', (e) => {
       employeeSearch = e.target.value;
       renderEmployees();
@@ -4887,6 +4890,7 @@
     });
 
     // Visits
+    $('#addVisitBtn').addEventListener('click', () => openVisitForm());
     $('#visitSearch').addEventListener('input', (e) => {
       visitSearch = e.target.value;
       renderVisits();
