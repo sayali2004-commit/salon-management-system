@@ -4817,7 +4817,6 @@
       serviceEmpty: () => openServiceForm(),
       paymentEmpty: () => openPaymentForm(),
       expenseEmpty: () => openExpenseForm(),
-      attendanceEmpty: () => openEmployeeForm(),
       salaryEmpty: () => openSalaryForm(),
     };
     $('#content').addEventListener('click', (e) => {
