@@ -124,7 +124,8 @@ svg { width: 18px; height: 18px; flex-shrink: 0; }
 .brand-sub { font-size: 11px; color: #7d8291; letter-spacing: 0.2px; }
 
 /* ============ Nav ============ */
-.nav { flex: 1; padding: 8px 12px; overflow-y: hidden; }
+.nav { flex: 1; padding: 8px 12px; overflow-y: auto; scrollbar-width: none; }
+.nav::-webkit-scrollbar { width: 0; height: 0; }
 .nav-label {
   font-size: 10.5px;
   text-transform: uppercase;
