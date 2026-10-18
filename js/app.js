@@ -4225,7 +4225,10 @@
     const empApp = $('#empApp');
 
     if (!session) {
-      saveSession({ role: 'admin', loggedInAt: new Date().toISOString() });
+      login.hidden = false;
+      adminApp.style.display = 'none';
+      empApp.hidden = true;
+      return;
     }
 
     login.hidden = true;
