@@ -1860,3 +1860,118 @@ svg { width: 18px; height: 18px; flex-shrink: 0; }
 }
 
 .app[hidden] { display: none; }
+
+/* ============================================================
+   Employee Dashboard — Layout & Alignment Fixes
+   ============================================================ */
+
+/* Dashboard head: keep sign-out button on its own line on narrow screens */
+#empApp .emp-dash-head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+#empApp .emp-dash-head .edh-info {
+  width: 100%;
+}
+#empApp .emp-dash-head #empSignOutBtn {
+  align-self: flex-start;
+  width: auto;
+}
+
+/* Mobile: stat cards single column, two columns from 640px */
+#empApp .stat-grid {
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (min-width: 640px) {
+  #empApp .stat-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 1024px) {
+  #empApp .stat-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Panel grid: single column on mobile, two columns on desktop */
+#empApp .panel-grid {
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 1024px) {
+  #empApp .panel-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* Progress grid responsive */
+#empApp .progress-grid {
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+@media (min-width: 640px) {
+  #empApp .progress-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* Panel-quick-row: full width buttons on mobile */
+#empApp .panel-quick-row .btn {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Content padding accounts for bottom nav on mobile */
+@media (max-width: 860px) {
+  #empApp .content { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
+}
+
+/* Desktop: sidebar always visible, main shifted, hide hamburger */
+@media (min-width: 861px) {
+  #empApp .sidebar {
+    width: var(--sidebar-w);
+    transform: none;
+    z-index: 50;
+    position: fixed;
+    inset: 0 auto 0 0;
+  }
+  #empApp .sidebar-backdrop { display: none; }
+  #empApp .main { margin-left: var(--sidebar-w); }
+  #empApp .icon-btn { display: none; }
+  #empApp .today-chip { display: inline-flex; }
+}
+
+/* Ensure empApp sections fill height and don't overlap sidebar */
+#empApp .main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+#empApp .content {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* Emp list items: prevent text overflow */
+#empApp .eli-info { min-width: 0; }
+#empApp .eli-t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#empApp .eli-s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Empty states centered */
+#empApp .empty-state { text-align: center; padding: 24px 16px; color: var(--text-3); }
+#empApp .empty-inline { text-align: left; padding: 16px 0; }
+
+/* Detail grid responsive */
+#empApp .detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 640px) {
+  #empApp .detail-grid { grid-template-columns: 1fr 1fr; }
+}
+#empApp .detail-item.span-2 { grid-column: span 2; }
+
+/* Emp dashboard stat card value sizing */
+#empApp .stat-value { font-size: 20px; }
+@media (min-width: 640px) {
+  #empApp .stat-value { font-size: 24px; }
+}
