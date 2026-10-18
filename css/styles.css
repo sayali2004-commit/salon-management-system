@@ -1975,3 +1975,34 @@ svg { width: 18px; height: 18px; flex-shrink: 0; }
 @media (min-width: 640px) {
   #empApp .stat-value { font-size: 24px; }
 }
+
+/* ================= New Employee Sections ================= */
+
+/* Schedule timetable */
+#empApp #empScheduleTimetable { margin-bottom: 16px; }
+
+/* Detail section title */
+#empApp .detail-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-3);
+  margin: 18px 0 10px;
+}
+
+/* Notifications list item accent */
+#empApp #empNotificationsList .emp-list-item { border-left: 3px solid var(--border); }
+#empApp #empNotificationsList .emp-list-item .eli-right .badge-approved { background: var(--green-50); color: var(--green); }
+#empApp #empNotificationsList .emp-list-item .eli-right .badge-rejected { background: var(--red-50); color: var(--red); }
+#empApp #empNotificationsList .emp-list-item .eli-right .badge-pending { background: var(--amber-50); color: var(--amber); }
+#empApp #empNotificationsList .emp-list-item .eli-right .badge-reminder { background: var(--sky-50); color: var(--sky); }
+
+/* Schedule: highlight upcoming appointment cards */
+#empApp #empScheduleUpcoming .emp-list-item { border-left: 3px solid var(--brand); }
+
+/* Badge color utilities for notification types */
+.badge-approved { background: var(--green-50); color: var(--green); }
+.badge-rejected { background: var(--red-50); color: var(--red); }
+.badge-pending { background: var(--amber-50); color: var(--amber); }
+.badge-reminder { background: var(--sky-50); color: var(--sky); }

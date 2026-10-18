@@ -591,7 +591,7 @@
   let currentSection = 'dashboard';
 
   function goto(section) {
-    if (!isAdmin()) return; // role-based guard: admin sections only for admin
+    if (!canAccessSection(section)) return;
     currentSection = section;
     $$('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
     $$('.bottom-nav [data-section]').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
@@ -4209,6 +4209,58 @@
     return db.employees.find((e) => e.id === session.employeeId) || null;
   }
 
+  /* ================= ROLE-BASED PERMISSION CHECKS ================= */
+
+  const ADMIN_ONLY_SECTIONS = new Set([
+    'dashboard', 'employees', 'customers', 'visits', 'appointments',
+    'payments', 'expenses', 'birthdays', 'services', 'attendance',
+    'leaves', 'salary',
+  ]);
+
+  const ADMIN_DATA_SECTIONS = new Set([
+    'employees', 'customers', 'visits', 'appointments', 'payments',
+    'expenses', 'birthdays', 'services', 'attendance', 'leaves', 'salary',
+  ]);
+
+  const EMPLOYEE_DATA_SECTIONS = new Set([
+    'emp-dash', 'emp-appointments', 'emp-visits', 'emp-attendance',
+    'emp-leaves', 'emp-salary', 'emp-profile', 'emp-customers',
+    'emp-services', 'emp-schedule', 'emp-notifications',
+  ]);
+
+  function isAdminSection(section) {
+    return ADMIN_ONLY_SECTIONS.has(section);
+  }
+
+  function isEmployeeSection(section) {
+    return EMPLOYEE_DATA_SECTIONS.has(section);
+  }
+
+  function canAccessSection(section) {
+    if (!session) return false;
+    if (session.role === 'admin') return true;
+    if (session.role === 'employee') return isEmployeeSection(section);
+    return false;
+  }
+
+  function canManageAdminData() {
+    return isAdmin();
+  }
+
+  function canViewOwnDataOnly() {
+    return isEmployee();
+  }
+
+  function getOwnEmployeeId() {
+    return isEmployee() ? session.employeeId : null;
+  }
+
+  function filterByOwnData(list) {
+    if (!session || !session.employeeId) return [];
+    const ownId = session.employeeId;
+    return list.filter((item) => item.employeeId === ownId);
+  }
+
   function getAdminPassword() {
     try {
       const cfg = JSON.parse(localStorage.getItem(AUTH_CFG_KEY) || 'null');
@@ -4326,9 +4378,13 @@
   const EMP_SECTIONS = {
     'emp-dash': { title: 'Dashboard', sub: 'Your personal work overview' },
     'emp-appointments': { title: 'My Appointments', sub: 'Your scheduled & completed appointments' },
+    'emp-customers': { title: 'My Customers', sub: 'Customers assigned to you' },
+    'emp-services': { title: 'My Services', sub: 'Services & tasks assigned to you' },
     'emp-visits': { title: 'My Visits', sub: 'Visits assigned to you' },
+    'emp-schedule': { title: 'My Schedule', sub: 'Your shift timetable & upcoming schedule' },
     'emp-attendance': { title: 'My Attendance', sub: 'Check in and review your attendance' },
-    'emp-leaves': { title: 'My Leaves', sub: 'Request leave and track approvals' },
+    'emp-leaves': { title: 'Leave Requests', sub: 'Request leave and track approvals' },
+    'emp-notifications': { title: 'Notifications', sub: 'Leave approvals & system alerts' },
     'emp-salary': { title: 'My Salary', sub: 'Your salary records & payments' },
     'emp-profile': { title: 'My Profile', sub: 'Your personal & employment details' },
   };
@@ -4342,7 +4398,7 @@
   }
 
   function empGoto(section) {
-    if (!isEmployee()) return;
+    if (!canAccessSection(section)) return;
     if (!EMP_SECTIONS[section]) return;
     empSection = section;
     $$('#empApp .nav-item').forEach((b) => b.classList.toggle('active', b.dataset.empSection === section));
@@ -4361,14 +4417,26 @@
       case 'emp-appointments':
         renderEmpAppointments(emp);
         break;
+      case 'emp-customers':
+        renderEmpCustomers(emp);
+        break;
+      case 'emp-services':
+        renderEmpServices(emp);
+        break;
       case 'emp-visits':
         renderEmpVisits(emp);
+        break;
+      case 'emp-schedule':
+        renderEmpSchedule(emp);
         break;
       case 'emp-attendance':
         renderEmpAttendance(emp);
         break;
       case 'emp-leaves':
         renderEmpLeaves(emp);
+        break;
+      case 'emp-notifications':
+        renderEmpNotifications(emp);
         break;
       case 'emp-salary':
         renderEmpSalary(emp);
@@ -4766,6 +4834,163 @@
       <div class="detail-item"><div class="label">Joining Date</div><div class="value">${fmtDate(emp.joiningDate)}</div></div>
       <div class="detail-item"><div class="label">Employment Status</div><div class="value">${empStatusBadge(emp.employmentStatus)}</div></div>
       <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(emp.notes || '·')}</div></div>`;
+  }
+
+  /* ---- My Customers (assigned to this employee) ---- */
+  function renderEmpCustomers(emp) {
+    const list = db.customers
+      .filter((c) => c.employeeId === emp.id)
+      .sort((a, b) => String(a.fullName || '').localeCompare(String(b.fullName || '')));
+
+    $('#empCustomersList').innerHTML = list.length
+      ? list
+          .map((c) => {
+            const visits = db.visits.filter((v) => v.customerId === c.id).length;
+            const lastVisit = db.visits
+              .filter((v) => v.customerId === c.id)
+              .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
+            return `
+        <div class="emp-list-item">
+          <div class="eli-info">
+            <div class="eli-t">${esc(c.fullName || 'Customer')}</div>
+            <div class="eli-s">${esc(c.mobile || '·')}${c.email ? ' · ' + esc(c.email) : ''}</div>
+            <div class="eli-s">${visits} visit(s)${lastVisit ? ' · Last: ' + fmtDate(lastVisit.visitDateTime) : ''}</div>
+          </div>
+          <div class="eli-right">
+            <span class="badge badge-brand">#${esc(c.id)}</span>
+          </div>
+        </div>`;
+          })
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No customers assigned to you yet.</p></div>`;
+  }
+
+  /* ---- My Services / Tasks ---- */
+  function renderEmpServices(emp) {
+    const specialties = (emp.specialties || '').split(/[,&]/).map((s) => s.trim()).filter(Boolean);
+    const list = db.services.filter((s) => {
+      if (specialties.length === 0) return false;
+      return specialties.some((sp) => String(s.name || '').toLowerCase().includes(sp.toLowerCase()) || String(sp || '').toLowerCase().includes(String(s.name || '').toLowerCase()));
+    });
+
+    $('#empServicesList').innerHTML = list.length
+      ? list
+          .map((s) => {
+            const apts = db.appointments.filter((a) => a.employeeId === emp.id && a.serviceId === s.id).length;
+            const visits = db.visits.filter((v) => v.employeeId === emp.id && v.serviceId === s.id).length;
+            return `
+        <div class="emp-list-item">
+          <div class="eli-info">
+            <div class="eli-t">${esc(s.name || 'Service')}</div>
+            <div class="eli-s">${fmtMoney(s.price)} · ${esc(s.duration || '·')} min</div>
+            <div class="eli-s">${apts} appointment(s) · ${visits} visit(s)</div>
+          </div>
+          <div class="eli-right">
+            <span class="badge badge-sky">Assigned</span>
+          </div>
+        </div>`;
+          })
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No services assigned to you. Check your specialties in My Profile.</p></div>`;
+  }
+
+  /* ---- My Schedule (timetable + upcoming appointments) ---- */
+  function renderEmpSchedule(emp) {
+    const today = todayISO();
+    const tt = getTimetable(emp.id);
+    const upcoming = db.appointments
+      .filter((a) => a.employeeId === emp.id && a.date >= today && (a.status === 'Scheduled' || a.status === 'Confirmed'))
+      .sort((a, b) => `${a.date || ''}T${a.time || ''}`.localeCompare(`${b.date || ''}T${b.time || ''}`));
+
+    $('#empScheduleTimetable').innerHTML = tt
+      ? `
+      <div class="panel-quick-row">
+        <div class="ps-cell"><div class="ps-n">${esc(tt.checkIn)}</div><div class="ps-l">Check In</div></div>
+        <div class="ps-cell"><div class="ps-n">${esc(tt.checkOut)}</div><div class="ps-l">Check Out</div></div>
+        <div class="ps-cell"><div class="ps-n">${esc(tt.workHours)}h</div><div class="ps-l">Work Hours</div></div>
+        <div class="ps-cell"><div class="ps-n">${esc(tt.halfDayTime)}</div><div class="ps-l">Half Day After</div></div>
+      </div>`
+      : `<div class="empty-state empty-inline"><p class="empty-text">No shift timetable assigned to you.</p></div>`;
+
+    $('#empScheduleUpcoming').innerHTML = upcoming.length
+      ? upcoming
+          .map((a) => {
+            const cus = db.customers.find((c) => c.id === a.customerId);
+            const svc = db.services.find((s) => s.id === a.serviceId);
+            return `
+        <div class="emp-list-item">
+          <div class="eli-info">
+            <div class="eli-t">${esc(a.serviceName || svc?.name || 'Appointment')}</div>
+            <div class="eli-s">${esc(cus?.fullName || 'Customer')}${cus?.mobile ? ' · ' + esc(cus.mobile) : ''}</div>
+            <div class="eli-s">${fmtDate(a.date)} · ${esc(a.time || '·')}</div>
+          </div>
+          <div class="eli-right">${appointmentStatusBadge(a.status)}</div>
+        </div>`;
+          })
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No upcoming appointments.</p></div>`;
+  }
+
+  /* ---- Notifications ---- */
+  function renderEmpNotifications(emp) {
+    const pendingLeaves = db.leaves.filter((l) => l.employeeId === emp.id && l.status === 'Pending');
+    const approvedLeaves = db.leaves.filter((l) => l.employeeId === emp.id && l.status === 'Approved');
+    const rejectedLeaves = db.leaves.filter((l) => l.employeeId === emp.id && l.status === 'Rejected');
+    const todayRec = attendanceFor(emp.id, todayISO());
+
+    const items = [];
+
+    if (pendingLeaves.length > 0) {
+      items.push({
+        title: 'Leave Request Pending',
+        body: `${pendingLeaves.length} leave request(s) awaiting approval`,
+        time: 'Recent',
+        type: 'pending',
+      });
+    }
+    if (approvedLeaves.length > 0) {
+      items.push({
+        title: 'Leave Approved',
+        body: `${approvedLeaves.length} leave request(s) approved`,
+        time: 'Recent',
+        type: 'approved',
+      });
+    }
+    if (rejectedLeaves.length > 0) {
+      items.push({
+        title: 'Leave Rejected',
+        body: `${rejectedLeaves.length} leave request(s) rejected`,
+        time: 'Recent',
+        type: 'rejected',
+      });
+    }
+    if (!todayRec) {
+      items.push({
+        title: 'Check-in Reminder',
+        body: 'You have not checked in today',
+        time: 'Today',
+        type: 'reminder',
+      });
+    }
+
+    $('#empNotificationsList').innerHTML = items.length
+      ? items
+          .map((it) => {
+            const typeCls = it.type === 'approved' ? 'badge-green' : it.type === 'rejected' ? 'badge-red' : it.type === 'pending' ? 'badge-amber' : 'badge-sky';
+            return `
+        <div class="emp-list-item">
+          <div class="eli-info">
+            <div class="eli-t">${esc(it.title)}</div>
+            <div class="eli-s">${esc(it.body)}</div>
+            <div class="eli-s">${esc(it.time)}</div>
+          </div>
+          <div class="eli-right">
+            <span class="badge ${typeCls}">${esc(it.type.charAt(0).toUpperCase() + it.type.slice(1))}</span>
+          </div>
+        </div>`;
+          })
+          .join('')
+      : `<div class="empty-state empty-inline"><p class="empty-text">No new notifications.</p></div>`;
   }
 
   function closeEmpSidebar() {
