@@ -4416,19 +4416,6 @@
   let empSection = 'emp-dash';
   let empAptFilter = 'today';
 
-  function renderEmpSidebarFooter(emp) {
-    const footer = $('#empSidebarFooter');
-    if (!footer || !emp) return;
-    footer.innerHTML = `
-      <div class="admin-chip">
-        ${avatarHTML(emp)}
-        <div>
-          <p class="admin-name">${esc(emp.fullName)}</p>
-          <p class="admin-role">Employee Panel${emp.staffRole ? ' · ' + esc(emp.staffRole) : ''}</p>
-        </div>
-      </div>`;
-  }
-
   function attBadge(status) {
     const cls = status === 'Present' ? 'badge-green' : status === 'Late' ? 'badge-amber' : status === 'Absent' ? 'badge-red' : 'badge-sky';
     return `<span class="badge ${cls}">${esc(status || '·')}</span>`;
@@ -4443,7 +4430,6 @@
     $$('#empApp .section').forEach((s) => s.classList.toggle('active', s.id === section));
     $('#empPageTitle').textContent = EMP_SECTIONS[section].title;
     $('#empPageSubtitle').textContent = EMP_SECTIONS[section].sub;
-    renderEmpSidebarFooter(currentEmployee());
     renderEmp(section);
     closeEmpSidebar();
   }
