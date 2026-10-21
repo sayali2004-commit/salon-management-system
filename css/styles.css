@@ -2576,7 +2576,7 @@ body {
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.admin-signout svg { width: 17px; height: 17px; }
+.admin-signout svg { width: 16px; height: 16px; }
 .admin-signout:hover {
   color: var(--red);
   background: var(--red-50);
