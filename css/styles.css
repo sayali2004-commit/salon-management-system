@@ -2528,10 +2528,34 @@ body {
 }
 .filter-dropdown[hidden] { display: none; }
 .filter-dropdown .filter-chips {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 2px;
   margin-bottom: 0;
-  flex-wrap: wrap;
   overflow: visible;
+}
+.filter-dropdown .chip {
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+.filter-dropdown .chip:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.filter-dropdown .chip.active {
+  background: var(--brand-50);
+  color: var(--brand);
 }
 @media (min-width: 640px) {
   .visits-toolbar .visit-search-wrap { flex: 1 1 220px; max-width: 380px; }
+}
+@media (min-width: 640px) {
+  .emp-apt-toolbar .visit-search-wrap { flex: 1 1 220px; max-width: 380px; }
 }

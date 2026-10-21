@@ -3790,7 +3790,8 @@
       return;
     }
 
-    const preEmp = l?.employeeId || prefill.employeeId || '';
+    const isEmployee = session?.role === 'employee';
+    const preEmp = isEmployee ? currentEmployee()?.id || prefill.employeeId || '' : l?.employeeId || prefill.employeeId || '';
     const types = ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Unpaid Leave', 'Maternity Leave', 'Paternity Leave', 'Other'];
 
     const body = `
@@ -3806,23 +3807,31 @@
       </div>
 
       <form id="lvForm" class="form-grid" autocomplete="off">
-        <div class="field span-2">
+        ${
+          isEmployee
+            ? ''
+            : `<div class="field span-2">
           <label>Employee <span class="req">*</span></label>
           ${pickerFieldHTML('lvEmp', 'employeeId', 'Type employee name to search...', preEmp, pickerLabelById(pickerOptionsEmployee, preEmp))}
-        </div>
+        </div>`
+        }
 
-        <div class="field">
+        <div class="field ${isEmployee ? 'span-2' : ''}">
           <label>Leave Type <span class="req">*</span></label>
           <select name="type" required>
             ${types.map((t) => `<option ${(l?.type || 'Casual Leave') === t ? 'selected' : ''}>${t}</option>`).join('')}
           </select>
         </div>
-        <div class="field">
+        ${
+          isEmployee
+            ? ''
+            : `<div class="field">
           <label>Status <span class="req">*</span></label>
           <select name="status" required>
             ${['Pending', 'Approved', 'Rejected'].map((s) => `<option ${(l?.status || 'Pending') === s ? 'selected' : ''}>${s}</option>`).join('')}
           </select>
-        </div>
+        </div>`
+        }
 
         <div class="field">
           <label>From Date <span class="req">*</span></label>
@@ -3849,12 +3858,15 @@
         <button class="btn btn-primary" data-act="save">${l ? 'Save Changes' : 'Submit Request'}</button>`,
       onOpen: (wrap, close) => {
         const form = $('#lvForm', wrap);
-        wirePicker(wrap, { base: 'lvEmp', options: pickerOptionsEmployee });
+        if (!isEmployee) wirePicker(wrap, { base: 'lvEmp', options: pickerOptionsEmployee });
         wrap.querySelector('[data-act="cancel"]').addEventListener('click', close);
         wrap.querySelector('[data-act="save"]').addEventListener('click', () => {
           if (!form.reportValidity()) return;
           const data = Object.fromEntries(new FormData(form).entries());
-          if (!data.employeeId) {
+          if (isEmployee) {
+            data.employeeId = preEmp;
+            data.status = l?.status || 'Pending';
+          } else if (!data.employeeId) {
             toast('Please select an employee from the suggestions.', 'error');
             return;
           }
@@ -4406,6 +4418,7 @@
 
   let empSection = 'emp-dash';
   let empAptFilter = 'today';
+  let empAptSearch = '';
 
   function attBadge(status) {
     const cls = status === 'Present' ? 'badge-green' : status === 'Late' ? 'badge-amber' : status === 'Absent' ? 'badge-red' : 'badge-sky';
@@ -4606,6 +4619,19 @@
     if (empAptFilter === 'today') list = list.filter((a) => a.date === today);
     else if (empAptFilter === 'upcoming') list = list.filter((a) => (a.status === 'Scheduled' || a.status === 'Confirmed') && a.date >= today);
     else if (empAptFilter === 'completed') list = list.filter((a) => a.status === 'Completed');
+
+    const q = empAptSearch.toLowerCase();
+    if (q) {
+      list = list.filter((a) => {
+        const cus = db.customers.find((c) => c.id === a.customerId);
+        return (
+          (a.id || '').toLowerCase().includes(q) ||
+          (a.serviceName || '').toLowerCase().includes(q) ||
+          (a.status || '').toLowerCase().includes(q) ||
+          (cus?.fullName || '').toLowerCase().includes(q)
+        );
+      });
+    }
     list.sort((a, b) => `${b.date || ''}T${b.time || ''}`.localeCompare(`${a.date || ''}T${a.time || ''}`));
 
     $$('#empAptFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.paf === empAptFilter));
@@ -4743,13 +4769,6 @@
   /* ---- My Leaves ---- */
   function renderEmpLeaves(emp) {
     const all = db.leaves.filter((l) => l.employeeId === emp.id).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-    const pending = all.filter((l) => l.status === 'Pending').length;
-    const approvedDays = all.filter((l) => l.status === 'Approved').reduce((t, l) => t + daysBetween(l.fromDate, l.toDate), 0);
-
-    $('#empLeaveSummary').innerHTML = `
-      <div class="ps-cell"><div class="ps-n">${all.length}</div><div class="ps-l">Total</div></div>
-      <div class="ps-cell amber"><div class="ps-n">${pending}</div><div class="ps-l">Pending</div></div>
-      <div class="ps-cell green"><div class="ps-n">${approvedDays}</div><div class="ps-l">Approved Days</div></div>`;
 
     $('#empLeaveList').innerHTML = all.length
       ? all
@@ -5306,9 +5325,36 @@
       const emp = currentEmployee();
       if (emp) openLeaveForm(null, { employeeId: emp.id });
     });
+
+    const empAptSearchWrap = $('#empAptSearchWrap');
+    const empAptSearchInput = $('#empAptSearch');
+    const empAptFilterDropdown = $('#empAptFilterDropdown');
+    const setEmpAptFilterOpen = (open) => {
+      empAptFilterDropdown.hidden = !open;
+      empAptSearchInput.setAttribute('aria-expanded', String(open));
+    };
+
+    empAptSearchInput.addEventListener('input', (e) => {
+      empAptSearch = e.target.value;
+      const emp = currentEmployee();
+      if (emp) renderEmpAppointments(emp);
+    });
+    empAptSearchInput.addEventListener('focus', () => setEmpAptFilterOpen(true));
+    empAptSearchInput.addEventListener('click', () => setEmpAptFilterOpen(true));
+    document.addEventListener('click', (e) => {
+      if (!empAptSearchWrap.contains(e.target)) setEmpAptFilterOpen(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !empAptFilterDropdown.hidden) {
+        setEmpAptFilterOpen(false);
+        document.activeElement?.blur?.();
+      }
+    });
+
     $$('#empAptFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         empAptFilter = chip.dataset.paf;
+        setEmpAptFilterOpen(false);
         const emp = currentEmployee();
         if (emp) renderEmpAppointments(emp);
       });

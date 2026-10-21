@@ -755,11 +755,22 @@
 
           <!-- My Appointments -->
           <section class="section" id="emp-appointments">
-            <div class="filter-chips" id="empAptFilters">
-              <button class="chip active" data-paf="today">Today</button>
-              <button class="chip" data-paf="upcoming">Upcoming</button>
-              <button class="chip" data-paf="completed">Completed</button>
-              <button class="chip" data-paf="all">All</button>
+            <div class="section-toolbar emp-apt-toolbar">
+              <div class="visit-search-wrap" id="empAptSearchWrap">
+                <div class="search-box">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" id="empAptSearch" placeholder="Search appointments..." aria-haspopup="true" aria-expanded="false" aria-controls="empAptFilterDropdown" />
+                </div>
+
+                <div class="filter-dropdown" id="empAptFilterDropdown" role="menu" aria-label="Filter appointments" hidden>
+                  <div class="filter-chips" id="empAptFilters">
+                    <button class="chip active" data-paf="today" role="menuitem">Today</button>
+                    <button class="chip" data-paf="upcoming" role="menuitem">Upcoming</button>
+                    <button class="chip" data-paf="completed" role="menuitem">Completed</button>
+                    <button class="chip" data-paf="all" role="menuitem">All</button>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="panel"><div class="panel-body" id="empAptList"></div></div>
           </section>
@@ -785,7 +796,6 @@
                 Request Leave
               </button>
             </div>
-            <div class="panel-summary-strip" id="empLeaveSummary"></div>
             <div class="detail-section-title">My Requests</div>
             <div class="panel"><div class="panel-body" id="empLeaveList"></div></div>
           </section>
