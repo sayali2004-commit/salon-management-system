@@ -5321,18 +5321,6 @@
       attendanceFilterStatus = chip.dataset.status;
       renderAttendance();
     });
-    const clearAttendanceFiltersBtn2 = $('#clearAttendanceFiltersBtn2');
-    if (clearAttendanceFiltersBtn2) clearAttendanceFiltersBtn2.addEventListener('click', () => {
-      attendanceSearch = '';
-      attendanceFilterStatus = 'all';
-      attendanceDate = todayISO();
-      const searchInput = $('#attendanceSearch');
-      const dateInput = $('#attendanceDate');
-      if (searchInput) searchInput.value = '';
-      if (dateInput) dateInput.value = attendanceDate;
-      $$('#attendanceFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.status === 'all'));
-      renderAttendance();
-    });
     $('#markAllPresentBtn').addEventListener('click', markAllPresent);
     $('#clearAttendanceFiltersBtn').addEventListener('click', clearAttendanceFilters);
 
