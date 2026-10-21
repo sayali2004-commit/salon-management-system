@@ -931,21 +931,16 @@
       <form id="empForm" class="form-grid" autocomplete="off">
         <div class="form-section-title first"><span class="num">1</span> Personal Details</div>
 
-        <div class="field span-2">
+        <div class="field">
           <label>Full Name <span class="req">*</span></label>
           <input name="fullName" required placeholder="e.g. Ayesha Rahman" value="${esc(emp?.fullName || '')}" />
-        </div>
-
-        <div class="field">
-          <label>Date of Birth <span class="req">*</span></label>
-          <input type="date" name="dob" required value="${esc(emp?.dob || '')}" />
         </div>
         <div class="field">
           <label>Mobile Number <span class="req">*</span></label>
           <input type="tel" name="mobile" required placeholder="e.g. +91 98765 43210" value="${esc(emp?.mobile || '')}" />
         </div>
 
-        <div class="field span-2">
+        <div class="field">
           <label>Gender <span class="req">*</span></label>
           <div class="pay-methods">
             ${genders
@@ -958,6 +953,10 @@
               )
               .join('')}
           </div>
+        </div>
+        <div class="field">
+          <label>Date of Birth <span class="req">*</span></label>
+          <input type="date" name="dob" required value="${esc(emp?.dob || '')}" />
         </div>
 
         <div class="field span-2">
