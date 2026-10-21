@@ -2499,3 +2499,10 @@ body {
   box-shadow: none;
 }
 .pay-method input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* ---------- Employee topbar actions ---------- */
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+@media (max-width: 860px) {
+  #empQaNotifications #empQaNotifLabel { display: none; }
+  #empQaNotifications { width: 36px; padding: 0; justify-content: center; }
+}
