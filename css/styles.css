@@ -2506,3 +2506,32 @@ body {
   #empQaNotifications #empQaNotifLabel { display: none; }
   #empQaNotifications { width: 36px; padding: 0; justify-content: center; }
 }
+
+/* ---------- Visits search filter dropdown ---------- */
+.visit-search-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.visit-search-wrap .search-box { width: 100%; }
+.filter-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 300;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+}
+.filter-dropdown[hidden] { display: none; }
+.filter-dropdown .filter-chips {
+  margin-bottom: 0;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+@media (min-width: 640px) {
+  .visits-toolbar .visit-search-wrap { flex: 1 1 220px; max-width: 380px; }
+}

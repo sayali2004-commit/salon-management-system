@@ -5075,15 +5075,37 @@
 
     // Visits
     $('#addVisitBtn').addEventListener('click', () => openVisitForm());
-    $('#visitSearch').addEventListener('input', (e) => {
+
+    const visitSearchWrap = $('#visitSearchWrap');
+    const visitSearchInput = $('#visitSearch');
+    const visitFilterDropdown = $('#visitFilterDropdown');
+    const setVisitFilterOpen = (open) => {
+      visitFilterDropdown.hidden = !open;
+      visitSearchInput.setAttribute('aria-expanded', String(open));
+    };
+
+    visitSearchInput.addEventListener('input', (e) => {
       visitSearch = e.target.value;
       renderVisits();
     });
+    visitSearchInput.addEventListener('focus', () => setVisitFilterOpen(true));
+    visitSearchInput.addEventListener('click', () => setVisitFilterOpen(true));
+    document.addEventListener('click', (e) => {
+      if (!visitSearchWrap.contains(e.target)) setVisitFilterOpen(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !visitFilterDropdown.hidden) {
+        setVisitFilterOpen(false);
+        document.activeElement?.blur?.();
+      }
+    });
+
     $$( '#visitFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#visitFilters .chip').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
         visitFilterStatus = chip.dataset.status;
+        setVisitFilterOpen(false);
         renderVisits();
       });
     });
@@ -5093,6 +5115,7 @@
       const input = $('#visitSearch');
       if (input) input.value = '';
       $$( '#visitFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.status === 'all'));
+      setVisitFilterOpen(false);
       renderVisits();
     });
 
