@@ -1021,6 +1021,17 @@
           </select>
         </div>
 
+        <div class="form-section-title"><span class="num">3</span> Login Credentials</div>
+
+        <div class="field">
+          <label>Username <span class="req">*</span></label>
+          <input name="username" required autocomplete="off" placeholder="e.g. sayali" value="${esc(emp ? employeeUsername(emp) : '')}" />
+        </div>
+        <div class="field">
+          <label>Password <span class="req">*</span></label>
+          <input name="password" required autocomplete="off" placeholder="Set a login password" value="${esc(emp ? employeePassword(emp) : 'employee123')}" />
+        </div>
+
         <div class="field span-2">
           <label>Notes</label>
           <textarea name="notes" placeholder="Any additional notes...">${esc(emp?.notes || '')}</textarea>
@@ -1046,6 +1057,24 @@
           data.gender = fd.get('gender') || '';
           if (!data.gender) {
             toast('Please select a gender.', 'error');
+            return;
+          }
+
+          data.username = String(data.username || '').trim().toLowerCase();
+          data.password = String(data.password || '').trim();
+          if (!data.username) {
+            toast('Please enter a login username.', 'error');
+            return;
+          }
+          if (!data.password) {
+            toast('Please set a login password.', 'error');
+            return;
+          }
+          const usernameTaken =
+            data.username === getAdminUsername() ||
+            db.employees.some((e) => e.id !== (emp ? emp.id : null) && employeeUsername(e) === data.username);
+          if (usernameTaken) {
+            toast('That username is already taken.', 'error');
             return;
           }
 
@@ -1102,6 +1131,7 @@
         <div class="detail-item"><div class="label">Experience (Years)</div><div class="value">${esc(e.experienceYears || '·')}</div></div>
         <div class="detail-item"><div class="label">Monthly Salary</div><div class="value">${e.salary ? fmtMoney(e.salary) : '·'}</div></div>
         <div class="detail-item"><div class="label">Shift</div><div class="value">${esc(e.shift || '·')}</div></div>
+        <div class="detail-item"><div class="label">Login Username</div><div class="value">${esc(employeeUsername(e))}</div></div>
         <div class="detail-item"><div class="label">Joining Date</div><div class="value">${fmtDate(e.joiningDate)}</div></div>
         <div class="detail-item"><div class="label">Employment Status</div><div class="value">${empStatusBadge(e.employmentStatus)}</div></div>
         <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(e.notes || '·')}</div></div>
@@ -4270,6 +4300,72 @@
     }
   }
 
+  function getAdminUsername() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem(AUTH_CFG_KEY) || 'null');
+      return String((cfg && cfg.adminUsername) || 'admin').trim().toLowerCase();
+    } catch {
+      return 'admin';
+    }
+  }
+
+  function defaultEmployeeUsername(name) {
+    return String(name || '')
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)[0]
+      .replace(/[^a-z0-9._-]/g, '');
+  }
+
+  function employeeUsername(emp) {
+    return String((emp && emp.username) || defaultEmployeeUsername(emp && emp.fullName)).trim().toLowerCase();
+  }
+
+  function employeePassword(emp) {
+    return String((emp && emp.password) || 'employee123');
+  }
+
+  function findEmployeeByLoginName(username) {
+    const u = String(username || '').trim().toLowerCase();
+    if (!u) return null;
+    return (
+      db.employees.find(
+        (e) =>
+          employeeUsername(e) === u ||
+          String(e.fullName || '').trim().toLowerCase() === u ||
+          defaultEmployeeUsername(e.fullName) === u ||
+          String(e.id || '').toLowerCase() === u
+      ) || null
+    );
+  }
+
+  function loginUser(username, password) {
+    const u = String(username || '').trim();
+    const p = String(password || '');
+    if (!u || !p) {
+      toast('Enter your username and password.', 'error');
+      return false;
+    }
+
+    if (u.toLowerCase() === getAdminUsername() && p === getAdminPassword()) {
+      saveSession({ role: 'admin', loggedInAt: new Date().toISOString() });
+      toast('Welcome back, Admin');
+      route();
+      return true;
+    }
+
+    const emp = findEmployeeByLoginName(u);
+    if (emp && employeePassword(emp) === p) {
+      saveSession({ role: 'employee', employeeId: emp.id, loggedInAt: new Date().toISOString() });
+      toast(`Welcome, ${emp.fullName}!`);
+      route();
+      return true;
+    }
+
+    toast('Invalid username or password.', 'error');
+    return false;
+  }
+
   /* Route by role after login/logout */
   function route() {
     const login = $('#loginScreen');
@@ -4327,75 +4423,10 @@
     window.scrollTo(0, 0);
   }
 
-  function adminLogin(password) {
-    if (password === getAdminPassword()) {
-      saveSession({ role: 'admin', loggedInAt: new Date().toISOString() });
-      toast('Welcome back, Admin');
-      route();
-      return true;
-    }
-    toast('Incorrect admin password.', 'error');
-    return false;
-  }
-
-  function employeeLogin(employeeId) {
-    const emp = db.employees.find((e) => e.id === employeeId);
-    if (!emp) {
-      toast('Employee not found.', 'error');
-      return false;
-    }
-    saveSession({ role: 'employee', employeeId, loggedInAt: new Date().toISOString() });
-    toast(`Welcome, ${emp.fullName}!`);
-    route();
-    return true;
-  }
-
   function logout() {
     clearSession();
     toast('Signed out successfully');
     route();
-  }
-
-  /* Login screen — employee profile list */
-  let loginEmpSearch = '';
-
-  function renderLoginEmployees() {
-    const grid = $('#loginEmpGrid');
-    const empty = $('#loginEmpEmpty');
-    if (!grid) return;
-    const q = loginEmpSearch.toLowerCase();
-    const list = db.employees.filter((e) => !q || (e.fullName || '').toLowerCase().includes(q) || (e.staffRole || '').toLowerCase().includes(q));
-
-    if (!db.employees.length) {
-      grid.innerHTML = '';
-      empty.style.display = 'block';
-      return;
-    }
-    empty.style.display = list.length ? 'none' : 'block';
-    if (!list.length) {
-      grid.innerHTML = '';
-      return;
-    }
-
-    grid.innerHTML = list
-      .map(
-        (e) => `
-      <button type="button" class="emp-pick-card" data-id="${esc(e.id)}">
-        ${avatarHTML(e, 'avatar-lg')}
-        <div class="emp-pick-info">
-          <h4>${esc(e.fullName)}</h4>
-          <p>${esc(e.staffRole || 'Employee')}${e.shift ? ' · ' + esc(e.shift) : ''}</p>
-        </div>
-        <span class="emp-pick-arrow">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        </span>
-      </button>`
-      )
-      .join('');
-
-    $$('#loginEmpGrid .emp-pick-card').forEach((card) => {
-      card.addEventListener('click', () => employeeLogin(card.dataset.id));
-    });
   }
 
   /* ================= EMPLOYEE DASHBOARD APP ================= */
@@ -4849,6 +4880,7 @@
       <div class="detail-item"><div class="label">Experience (Years)</div><div class="value">${esc(emp.experienceYears || '·')}</div></div>
       <div class="detail-item"><div class="label">Monthly Salary</div><div class="value">${emp.salary ? fmtMoney(emp.salary) : '·'}</div></div>
       <div class="detail-item"><div class="label">Shift</div><div class="value">${esc(emp.shift || '·')}</div></div>
+      <div class="detail-item"><div class="label">Login Username</div><div class="value">${esc(employeeUsername(emp))}</div></div>
       <div class="detail-item"><div class="label">Joining Date</div><div class="value">${fmtDate(emp.joiningDate)}</div></div>
       <div class="detail-item"><div class="label">Employment Status</div><div class="value">${empStatusBadge(emp.employmentStatus)}</div></div>
       <div class="detail-item span-2"><div class="label">Notes</div><div class="value">${esc(emp.notes || '·')}</div></div>`;
@@ -5261,27 +5293,32 @@
     });
 
     // ---- Login screen ----
-    $$('#loginTabs .chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        $$('#loginTabs .chip').forEach((c) => c.classList.remove('active'));
-        chip.classList.add('active');
-        const role = chip.dataset.lrole;
-        $('#loginAdminPane').hidden = role !== 'admin';
-        $('#loginEmpPane').hidden = role !== 'employee';
-        if (role === 'employee') renderLoginEmployees();
+    const loginForm = $('#loginForm');
+    if (loginForm) {
+      loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const username = $('#loginUsername').value;
+        const password = $('#loginPassword').value;
+        if (loginUser(username, password)) {
+          loginForm.reset();
+          const pw = $('#loginPassword');
+          if (pw) pw.type = 'password';
+          const show = $('#loginShowBtn');
+          if (show) show.textContent = 'Show';
+        }
       });
-    });
+    }
 
-    $('#adminLoginForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const pw = $('#adminPasswordInput').value;
-      if (adminLogin(pw)) $('#adminPasswordInput').value = '';
-    });
-
-    $('#loginEmpSearch').addEventListener('input', (e) => {
-      loginEmpSearch = e.target.value;
-      renderLoginEmployees();
-    });
+    const loginShowBtn = $('#loginShowBtn');
+    if (loginShowBtn) {
+      loginShowBtn.addEventListener('click', () => {
+        const pw = $('#loginPassword');
+        if (!pw) return;
+        const reveal = pw.type === 'password';
+        pw.type = reveal ? 'text' : 'password';
+        loginShowBtn.textContent = reveal ? 'Hide' : 'Show';
+      });
+    }
 
     // ---- Employee shell navigation ----
     $$('#empApp .nav-item').forEach((btn) => {

@@ -6,56 +6,38 @@
   <title>Salon Management System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-﻿  <!-- Login screen (role-based) -->
+  ﻿<!-- Login screen (single username & password) -->
   <div class="login-screen" id="loginScreen">
     <div class="login-card">
-      <div class="brand" style="padding:0 0 20px">
-        <div class="brand-mark">S</div>
-        <div class="brand-text">
-          <span class="brand-name" style="color:var(--text)">Salon</span>
-          <span class="brand-sub">Management System</span>
+      <div class="login-head">
+        <div class="login-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5V6a2 2 0 0 1 2-2h9.5L20 8.5V19.5A1.5 1.5 0 0 1 18.5 21h-13A1.5 1.5 0 0 1 4 19.5Z"/><path d="M15.5 4v5h4.5"/><circle cx="10.5" cy="13" r="2.5"/></svg>
         </div>
+        <h1 class="login-company">NexGravision</h1>
+        <p class="login-sub">Salon Management System</p>
       </div>
 
-      <div class="filter-chips" id="loginTabs" style="margin-bottom:16px">
-        <button class="chip active" data-lrole="admin">
-          Admin
-        </button>
-        <button class="chip" data-lrole="employee">
-          Employee
-        </button>
-      </div>
+      <form id="loginForm" autocomplete="off">
+        <div class="login-field">
+          <label for="loginUsername">Username</label>
+          <input type="text" id="loginUsername" name="username" placeholder="Enter your username" autocomplete="username" required />
+        </div>
 
-      <div id="loginAdminPane">
-        <form id="adminLoginForm" autocomplete="off">
-          <div class="field" style="margin-bottom:14px">
-            <label>Admin Password</label>
-            <input type="password" name="password" id="adminPasswordInput" required placeholder="Enter admin password" autocomplete="current-password" />
+        <div class="login-field">
+          <label for="loginPassword">Password</label>
+          <div class="login-pass">
+            <input type="password" id="loginPassword" name="password" placeholder="Enter your password" autocomplete="current-password" required />
+            <button type="button" class="login-show" id="loginShowBtn">Show</button>
           </div>
-          <button type="submit" class="btn btn-primary" style="width:100%">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-            Sign in as Admin
-          </button>
-          <p class="login-hint">Full access to all sections · Default password: <strong>admin123</strong></p>
-        </form>
-      </div>
+        </div>
 
-      <div id="loginEmpPane" hidden>
-        <div class="search-box" style="margin-bottom:12px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="loginEmpSearch" placeholder="Search your name..." />
-        </div>
-        <div class="emp-pick-grid" id="loginEmpGrid" style="grid-template-columns:1fr"></div>
-        <div class="empty-state" id="loginEmpEmpty" style="padding:28px 12px">
-          <p class="empty-title" style="font-size:13.5px">No employees yet</p>
-          <p class="empty-text">Ask the admin to add employee records first.</p>
-        </div>
-        <p class="login-hint">Employees can view only their own dashboard — appointments, attendance, leaves and salary.</p>
-      </div>
+        <button type="submit" class="btn btn-primary login-submit">Sign In</button>
+        <p class="login-hint">Use the username &amp; password given by your admin.<br />Default admin login: <strong>admin / admin123</strong></p>
+      </form>
     </div>
   </div>
 
