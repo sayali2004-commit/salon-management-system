@@ -1349,7 +1349,6 @@
       { v: 'UPI', hint: 'GPay / PhonePe' },
     ];
     const selectedMethod = cus?.paymentMethod || 'Cash';
-    const currentPayStatus = cus ? autoPayStatus(cus.totalAmount, cus.paidAmount) : 'Pending';
 
     const body = `
       <div class="modal-hero">
@@ -1430,14 +1429,6 @@
           </div>
         </div>
 
-        <div class="field">
-          <label>Payment Status (auto)</label>
-          <select name="paymentStatus" id="cusPayStatus">
-            ${['Paid', 'Partial', 'Pending'].map((p) => `<option ${currentPayStatus === p ? 'selected' : ''}>${p}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field"></div>
-
         <div class="field span-2">
           <label>Notes</label>
           <textarea name="notes" placeholder="Any additional notes...">${esc(cus?.notes || '')}</textarea>
@@ -1455,7 +1446,6 @@
       onOpen: (wrap, close) => {
         const form = $('#cusForm', wrap);
         const dueHint = $('#cusDueHint', wrap);
-        const statusSel = $('#cusPayStatus', wrap);
 
         // Searchable pickers
         wirePicker(wrap, {
@@ -1476,13 +1466,11 @@
           const t = form.totalAmount.value;
           const p = form.paidAmount.value;
           if (t === '' && p === '') {
-            statusSel.value = 'Pending';
             dueHint.classList.add('empty');
             dueHint.textContent = 'Enter amounts to see payment status & due';
             return;
           }
           const status = autoPayStatus(t, p);
-          statusSel.value = status;
           const due = num(t) - num(p);
           dueHint.classList.remove('empty');
           if (due > 0) dueHint.innerHTML = `Payment: <strong>${status}</strong> · Due amount: <strong style="color:var(--red)">${fmtMoney(due)}</strong>`;

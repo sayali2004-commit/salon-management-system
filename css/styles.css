@@ -2450,3 +2450,52 @@ body {
   .toolbar-chips { width: 100%; }
   .clear-filter-btn { align-self: stretch; }
 }
+
+/* ---------- Plain radio options (no card styling) ---------- */
+.pay-methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  grid-template-columns: none;
+}
+.pay-method {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.pay-method input {
+  position: static;
+  opacity: 1;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  padding: 0;
+  pointer-events: auto;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+.pay-method span {
+  display: inline;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-2);
+  text-align: left;
+  transition: color 0.15s ease;
+}
+.pay-method span::before { content: none; display: none; }
+.pay-method input:checked + span {
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  box-shadow: none;
+}
+.pay-method input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
