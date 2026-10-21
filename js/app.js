@@ -1615,7 +1615,7 @@
                .map((v) => {
                  const vEmp = db.employees.find((e) => e.id === v.employeeId);
                  return `<div class="detail-item span-2">
-                   <div class="label">${esc(v.id)} · ${fmtDateTime(v.visitDateTime)}</div>
+                    <div class="label">${fmtDateTime(v.visitDateTime)}</div>
                    <div class="value">${esc(v.serviceName || 'Salon Visit')}${v.amount ? ` · ₹${esc(v.amount)}` : ''}</div>
                    <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
                      <span class="badge badge-gray">${esc(vEmp?.fullName || v.employeeId)}</span>
@@ -1811,7 +1811,6 @@
           <h3>${visit ? 'Edit Visit' : 'New Visit'}</h3>
           <p>${visit ? 'Update the visit record' : 'Record a customer visit & payment'}</p>
         </div>
-        <span class="modal-hero-id">${visit ? esc(visit.id) : peekId('visit')}</span>
       </div>
 
       <form id="visitForm" class="form-grid" autocomplete="off">
@@ -1961,7 +1960,6 @@
           <h2>${esc(v.serviceName || 'Salon Visit')}</h2>
           <div class="role">${esc(cus?.fullName || v.customerId)} · served by ${esc(emp?.fullName || v.employeeId)}</div>
           <div class="badges">
-            <span class="badge badge-brand">${esc(v.id)}</span>
             ${statusBadge(v.status)}
             ${v.paymentStatus ? payStatusBadge(v.paymentStatus) : ''}
           </div>
@@ -2146,7 +2144,6 @@
         const emp = db.employees.find((e) => e.id === a.employeeId);
         return `
       <tr data-id="${esc(a.id)}">
-        <td data-label="Appointment ID"><strong style="color:var(--brand)">${esc(a.id)}</strong></td>
         <td data-label="Customer">
           <div class="person-cell">
             ${avatarHTML(cus || { fullName: a.customerId })}
@@ -2218,7 +2215,6 @@
           <h3>${apt ? 'Edit Appointment' : 'New Appointment'}</h3>
           <p>${apt ? 'Update the appointment' : 'Search an existing customer — no need to re-add them'}</p>
         </div>
-        <span class="modal-hero-id">${apt ? esc(apt.id) : peekId('apt')}</span>
       </div>
 
       <form id="aptForm" class="form-grid" autocomplete="off">
@@ -2531,7 +2527,6 @@
           <h2>${esc(a.serviceName || 'Salon Appointment')}</h2>
           <div class="role">${esc(cus?.fullName || 'Unknown customer')} · ${fmtDate(a.date)} · ${esc(a.time || '·')}</div>
           <div class="badges">
-            <span class="badge badge-brand">${esc(a.id)}</span>
             ${appointmentStatusBadge(a.status)}
             ${a.price != null && a.price !== '' ? `<span class="badge badge-green">${fmtMoney(a.price)}</span>` : ''}
           </div>
@@ -2758,7 +2753,6 @@
           <h3>${svc ? 'Edit Service' : 'Add Service'}</h3>
           <p>${svc ? 'Update the service details' : 'Add a new service to your catalog'}</p>
         </div>
-        <span class="modal-hero-id">${svc ? esc(svc.id) : peekId('svc')}</span>
       </div>
 
       <form id="svcForm" class="form-grid" autocomplete="off">
@@ -2924,7 +2918,6 @@
         const cus = db.customers.find((c) => c.id === p.customerId);
         return `
       <tr data-id="${esc(p.id)}">
-        <td data-label="Payment ID"><strong style="color:var(--brand)">${esc(p.id)}</strong></td>
         <td data-label="Customer">
           <div class="person-cell">
             ${avatarHTML(cus || { fullName: 'Walk-in' })}
@@ -3006,7 +2999,6 @@
           <h3>${pay ? 'Edit Payment' : 'Record Payment'}</h3>
           <p>${pay ? `Update payment record` : 'Log a cash or online payment received'}</p>
         </div>
-        <span class="modal-hero-id">${pay ? esc(pay.id) : peekId('pay')}</span>
       </div>
 
       <form id="payForm" class="form-grid" autocomplete="off">
@@ -3090,7 +3082,6 @@
           <h2>${fmtMoney(p.amount)}</h2>
           <div class="role">${esc(cus?.fullName || 'Walk-in Customer')} · ${esc(p.method || '·')}</div>
           <div class="badges">
-            <span class="badge badge-brand">${esc(p.id)}</span>
             ${payStatusBadge(p.status)}
             ${methodBadge(p.method)}
           </div>
@@ -3223,7 +3214,6 @@
       .map(
         (e) => `
       <tr data-id="${esc(e.id)}">
-        <td data-label="Expense ID"><strong style="color:var(--brand)">${esc(e.id)}</strong></td>
         <td data-label="Title">${esc(e.title || '·')}</td>
         <td data-label="Category">${catBadge(e.category)}</td>
         <td data-label="Amount"><strong class="amount-red">${fmtMoney(e.amount)}</strong></td>
@@ -3264,9 +3254,8 @@
         </div>
         <div class="modal-hero-info">
           <h3>${exp ? 'Edit Expense' : 'Add Expense'}</h3>
-          <p>${exp ? `Update ${esc(exp.id)}` : 'Record a business expense entry'}</p>
+          <p>${exp ? 'Update the expense entry' : 'Record a business expense entry'}</p>
         </div>
-        <span class="modal-hero-id">${exp ? esc(exp.id) : peekId('exp')}</span>
       </div>
 
       <form id="expForm" class="form-grid" autocomplete="off">
@@ -3609,7 +3598,7 @@
           ${avatarHTML(e)}
           <div class="info">
             <div class="t">${esc(e.fullName)}</div>
-            <div class="s">${esc(e.staffRole || '')} · ${esc(e.id)}${rec ? ' · ' + esc(rec.status) : ' · Not marked'}</div>
+            <div class="s">${esc(e.staffRole || '')}${rec ? ' · ' + esc(rec.status) : ' · Not marked'}</div>
           </div>
           ${rec ? `<span class="badge ${rec.status === 'Present' ? 'badge-green' : rec.status === 'Late' ? 'badge-amber' : rec.status === 'Absent' ? 'badge-red' : 'badge-sky'}">${esc(rec.status)}</span>` : '<span class="badge badge-gray">Not marked</span>'}
         </div>
@@ -3760,7 +3749,6 @@
         const emp = db.employees.find((e) => e.id === l.employeeId);
         return `
       <tr data-id="${esc(l.id)}">
-        <td data-label="Request ID"><strong style="color:var(--brand)">${esc(l.id)}</strong></td>
         <td data-label="Employee">
           <div class="person-cell">
             ${avatarHTML(emp || { fullName: l.employeeId })}
@@ -3831,9 +3819,8 @@
         </div>
         <div class="modal-hero-info">
           <h3>${l ? 'Edit Leave Request' : 'New Leave Request'}</h3>
-          <p>${l ? `Update ${esc(l.id)}` : 'Record a leave request for an employee'}</p>
+          <p>${l ? 'Update the leave request' : 'Record a leave request for an employee'}</p>
         </div>
-        <span class="modal-hero-id">${l ? esc(l.id) : peekId('lv')}</span>
       </div>
 
       <form id="lvForm" class="form-grid" autocomplete="off">
@@ -4014,7 +4001,6 @@
         const emp = db.employees.find((e) => e.id === s.employeeId);
         return `
       <tr data-id="${esc(s.id)}">
-        <td data-label="Record ID"><strong style="color:var(--brand)">${esc(s.id)}</strong></td>
         <td data-label="Employee">
           <div class="person-cell">
             ${avatarHTML(emp || { fullName: s.employeeId })}
@@ -4085,9 +4071,8 @@
         </div>
         <div class="modal-hero-info">
           <h3>${sal ? 'Edit Salary Record' : 'Pay Salary'}</h3>
-          <p>${sal ? `Update ${esc(sal.id)}` : 'Record a monthly salary payment'}</p>
+          <p>${sal ? 'Update the salary record' : 'Record a monthly salary payment'}</p>
         </div>
-        <span class="modal-hero-id">${sal ? esc(sal.id) : peekId('sal')}</span>
       </div>
 
       <form id="salForm" class="form-grid" autocomplete="off">
@@ -4520,7 +4505,6 @@
           <div class="edh-name">${esc(emp.fullName)}</div>
           <div class="edh-meta">${esc(emp.staffRole || 'Employee')} · ${esc(emp.shift || 'No shift')}</div>
           <div class="edh-badges">
-            <span class="badge badge-brand">${esc(emp.id)}</span>
             ${empStatusBadge(emp.employmentStatus)}
             ${isTodayBirthday(emp.dob) ? '<span class="badge badge-amber">🎂 Birthday today</span>' : ''}
           </div>
@@ -4863,7 +4847,6 @@
           <h2>${esc(emp.fullName)}</h2>
           <div class="role">${esc(emp.staffRole || 'Employee')} · ${esc(emp.specialties || '')}</div>
           <div class="badges">
-            <span class="badge badge-brand">${esc(emp.id)}</span>
             ${empStatusBadge(emp.employmentStatus)}
             <span class="badge badge-gray">${visitsDone} visits · ${totalApts} appointments</span>
           </div>
@@ -4871,7 +4854,6 @@
       </div>`;
 
     $('#empProfilePersonal').innerHTML = `
-      <div class="detail-item"><div class="label">Employee ID</div><div class="value"><strong style="color:var(--brand)">${esc(emp.id)}</strong></div></div>
       <div class="detail-item"><div class="label">Date of Birth</div><div class="value">${fmtDate(emp.dob)}${isTodayBirthday(emp.dob) ? ' · 🎂 Today!' : ''}</div></div>
       <div class="detail-item"><div class="label">Gender</div><div class="value">${esc(emp.gender || '·')}</div></div>
       <div class="detail-item"><div class="label">Mobile Number</div><div class="value">${esc(emp.mobile || '·')}</div></div>
@@ -4908,9 +4890,6 @@
             <div class="eli-t">${esc(c.fullName || 'Customer')}</div>
             <div class="eli-s">${esc(c.mobile || '·')}${c.email ? ' · ' + esc(c.email) : ''}</div>
             <div class="eli-s">${visits} visit(s)${lastVisit ? ' · Last: ' + fmtDate(lastVisit.visitDateTime) : ''}</div>
-          </div>
-          <div class="eli-right">
-            <span class="badge badge-brand">#${esc(c.id)}</span>
           </div>
         </div>`;
           })
