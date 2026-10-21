@@ -932,16 +932,6 @@
     const genders = ['Male', 'Female', 'Other'];
 
     const body = `
-      <div class="modal-hero">
-        <div class="modal-hero-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-        </div>
-        <div class="modal-hero-info">
-          <h3>${emp ? 'Edit Employee' : 'Add New Employee'}</h3>
-          <p>${emp ? 'Update the employee details below' : 'Register a new team member with their salary'}</p>
-        </div>
-      </div>
-
       <form id="empForm" class="form-grid" autocomplete="off">
         <div class="form-section-title first"><span class="num">1</span> Personal Details</div>
 
@@ -1749,7 +1739,6 @@
         const cus = db.customers.find((c) => c.id === v.customerId);
         return `
       <tr data-id="${esc(v.id)}">
-        <td data-label="Visit ID"><strong style="color:var(--brand)">${esc(v.id)}</strong></td>
         <td data-label="Customer">
           <div class="person-cell">
             ${avatarHTML(cus || { fullName: v.customerId })}
@@ -5180,6 +5169,14 @@
         visitFilterStatus = chip.dataset.status;
         renderVisits();
       });
+    });
+    $('#clearVisitFilters').addEventListener('click', () => {
+      visitSearch = '';
+      visitFilterStatus = 'all';
+      const input = $('#visitSearch');
+      if (input) input.value = '';
+      $$( '#visitFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.status === 'all'));
+      renderVisits();
     });
 
     // Appointments

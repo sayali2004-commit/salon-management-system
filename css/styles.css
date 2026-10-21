@@ -2433,3 +2433,20 @@ body {
 .ps-cell.red .ps-n { color: var(--red); }
 .ps-cell.sky .ps-n { color: var(--sky); }
 
+
+/* ---------- Visits toolbar: inline filters ---------- */
+.visits-toolbar { flex-wrap: wrap; }
+.visits-toolbar .search-box { flex: 1 1 220px; }
+.toolbar-chips {
+  margin-bottom: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.toolbar-chips::-webkit-scrollbar { display: none; }
+.clear-filter-btn { flex-shrink: 0; white-space: nowrap; }
+@media (max-width: 639px) {
+  .toolbar-chips { width: 100%; }
+  .clear-filter-btn { align-self: stretch; }
+}

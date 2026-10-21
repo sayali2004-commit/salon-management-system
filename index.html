@@ -284,22 +284,28 @@
 
         <!-- Visits -->
         <section class="section" id="section-visits">
-          <div class="section-toolbar">
+          <div class="section-toolbar visits-toolbar">
             <div class="search-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input type="text" id="visitSearch" placeholder="Search visits..." />
             </div>
+
+            <div class="filter-chips toolbar-chips" id="visitFilters">
+              <button class="chip active" data-status="all">All</button>
+              <button class="chip" data-status="Scheduled">Scheduled</button>
+              <button class="chip" data-status="In Progress">In Progress</button>
+              <button class="chip" data-status="Completed">Completed</button>
+            </div>
+
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearVisitFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
+
             <button class="btn btn-primary" id="addVisitBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               New Visit
             </button>
-          </div>
-
-          <div class="filter-chips" id="visitFilters">
-            <button class="chip active" data-status="all">All</button>
-            <button class="chip" data-status="Scheduled">Scheduled</button>
-            <button class="chip" data-status="In Progress">In Progress</button>
-            <button class="chip" data-status="Completed">Completed</button>
           </div>
 
           <div class="panel">
@@ -307,7 +313,6 @@
               <table class="data-table" id="visitTable">
                 <thead>
                   <tr>
-                    <th>Visit ID</th>
                     <th>Customer</th>
                     <th>Assigned To</th>
                     <th>Service</th>
