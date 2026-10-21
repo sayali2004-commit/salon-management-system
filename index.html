@@ -227,6 +227,10 @@
                 </div>
               </div>
             </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearEmployeeFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
             <button class="btn btn-primary" id="addEmployeeBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Create Employee
@@ -271,6 +275,10 @@
                 </div>
               </div>
             </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearCustomerFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
             <button class="btn btn-primary" id="addCustomerBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add Customer
@@ -371,6 +379,10 @@
                 </div>
               </div>
             </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearAppointmentFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
             <button class="btn btn-primary" id="addAppointmentBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               New Appointment
@@ -403,11 +415,23 @@
         <!-- Birthdays -->
         <section class="section" id="section-birthdays">
           <div class="section-toolbar">
-            <div class="filter-chips" id="birthdayFilters">
-              <button class="chip active" data-btype="all">Everyone</button>
-              <button class="chip" data-btype="employee">Employees</button>
-              <button class="chip" data-btype="customer">Customers</button>
+            <div class="visit-search-wrap" id="birthdaySearchWrap">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="birthdaySearch" placeholder="Search birthdays..." aria-haspopup="true" aria-expanded="false" aria-controls="birthdayFilterDropdown" />
+              </div>
+              <div class="filter-dropdown" id="birthdayFilterDropdown" role="menu" aria-label="Filter birthdays" hidden>
+                <div class="filter-chips" id="birthdayFilters">
+                  <button class="chip active" data-btype="all" role="menuitem">Everyone</button>
+                  <button class="chip" data-btype="employee" role="menuitem">Employees</button>
+                  <button class="chip" data-btype="customer" role="menuitem">Customers</button>
+                </div>
+              </div>
             </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearBirthdayFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
           </div>
           <div class="birthday-grid" id="birthdayGrid"></div>
           <div class="empty-state panel" id="birthdayEmpty">
@@ -432,6 +456,10 @@
                 </div>
               </div>
             </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearServiceFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
             <button class="btn btn-primary" id="addServiceBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add Service
@@ -463,6 +491,10 @@
                 </div>
               </div>
             </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearPaymentFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
             <button class="btn btn-primary" id="addPaymentBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add Payment
@@ -514,6 +546,10 @@
                 </div>
               </div>
             </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearExpenseFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
             <button class="btn btn-primary" id="addExpenseBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add Expense
@@ -563,6 +599,10 @@
                 </div>
               </div>
             </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearAttendanceFiltersBtn2" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
             <div class="toolbar-date">
               <label for="attendanceDate">Date</label>
               <input type="date" id="attendanceDate" />
@@ -615,6 +655,10 @@
                 </div>
               </div>
             </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearLeaveFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
           </div>
           <div class="panel">
             <div class="table-wrap">
@@ -658,6 +702,10 @@
                 </div>
               </div>
             </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearSalaryFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
             <button class="btn btn-primary" id="addSalaryBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Pay Salary
@@ -833,6 +881,10 @@
                   </div>
                 </div>
               </div>
+            <button class="btn btn-ghost btn-sm clear-filter-btn" id="clearEmpAptFilters" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
             </div>
             <div class="panel"><div class="panel-body" id="empAptList"></div></div>
           </section>

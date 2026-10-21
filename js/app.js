@@ -2597,6 +2597,7 @@
 
   /* ================= BIRTHDAYS ================= */
   let birthdayFilter = 'all';
+  let birthdaySearch = '';
 
   function getUpcomingBirthdays() {
     const items = [];
@@ -2618,6 +2619,15 @@
   function renderBirthdays() {
     let items = getUpcomingBirthdays();
     if (birthdayFilter !== 'all') items = items.filter((b) => b.type === birthdayFilter);
+    const q = birthdaySearch.toLowerCase();
+    if (q) {
+      items = items.filter(
+        (b) =>
+          (b.person.fullName || '').toLowerCase().includes(q) ||
+          (b.person.mobile || '').toLowerCase().includes(q) ||
+          ((b.type === 'employee' ? b.person.staffRole : b.person.email) || '').toLowerCase().includes(q)
+      );
+    }
 
     const grid = $('#birthdayGrid');
     const empty = $('#birthdayEmpty');
@@ -2625,6 +2635,9 @@
     if (!items.length) {
       grid.innerHTML = '';
       empty.style.display = 'block';
+      empty.querySelector('.empty-title').textContent = q || birthdayFilter !== 'all' ? 'No matching birthdays' : 'No upcoming birthdays';
+      empty.querySelector('.empty-text').textContent =
+        q || birthdayFilter !== 'all' ? 'Try a different filter or search term.' : 'Birthdays within the next 30 days will appear here.';
       return;
     }
     empty.style.display = 'none';
@@ -5135,6 +5148,15 @@
       employeeFilterStatus = chip.dataset.status;
       renderEmployees();
     });
+    const clearEmployeeFiltersBtn = $('#clearEmployeeFilters');
+    if (clearEmployeeFiltersBtn) clearEmployeeFiltersBtn.addEventListener('click', () => {
+      employeeSearch = '';
+      employeeFilterStatus = 'all';
+      const input = $('#employeeSearch');
+      if (input) input.value = '';
+      $$('#employeeFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.status === 'all'));
+      renderEmployees();
+    });
 
 
     // Customer
@@ -5145,6 +5167,15 @@
     });
     setupFilterDropdown('customerSearchWrap', 'customerSearch', 'customerFilterDropdown', '#customerFilters .chip', (chip) => {
       customerFilterStatus = chip.dataset.pay;
+      renderCustomers();
+    });
+    const clearCustomerFiltersBtn = $('#clearCustomerFilters');
+    if (clearCustomerFiltersBtn) clearCustomerFiltersBtn.addEventListener('click', () => {
+      customerSearch = '';
+      customerFilterStatus = 'all';
+      const input = $('#customerSearch');
+      if (input) input.value = '';
+      $$('#customerFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.pay === 'all'));
       renderCustomers();
     });
 
@@ -5201,6 +5232,15 @@
       renderAppointments();
     });
     setupFilterDropdown('appointmentSearchWrap', 'appointmentSearch', 'appointmentFilterDropdown', '#appointmentFilters .chip');
+    const clearAppointmentFiltersBtn = $('#clearAppointmentFilters');
+    if (clearAppointmentFiltersBtn) clearAppointmentFiltersBtn.addEventListener('click', () => {
+      appointmentSearch = '';
+      appointmentFilterStatus = 'all';
+      const input = $('#appointmentSearch');
+      if (input) input.value = '';
+      $$('#appointmentFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.status === 'all'));
+      renderAppointments();
+    });
     $$( '#appointmentFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#appointmentFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5217,6 +5257,16 @@
       renderPayments();
     });
     setupFilterDropdown('paymentSearchWrap', 'paymentSearch', 'paymentFilterDropdown', '#paymentFilters .chip');
+    const clearPaymentFiltersBtn = $('#clearPaymentFilters');
+    if (clearPaymentFiltersBtn) clearPaymentFiltersBtn.addEventListener('click', () => {
+      paymentSearch = '';
+      paymentFilterMethod = 'all';
+      paymentFilterStatus = 'all';
+      const input = $('#paymentSearch');
+      if (input) input.value = '';
+      $$('#paymentFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.method === 'all'));
+      renderPayments();
+    });
     $$( '#paymentFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#paymentFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5239,6 +5289,15 @@
       renderExpenses();
     });
     setupFilterDropdown('expenseSearchWrap', 'expenseSearch', 'expenseFilterDropdown', '#expenseFilters .chip');
+    const clearExpenseFiltersBtn = $('#clearExpenseFilters');
+    if (clearExpenseFiltersBtn) clearExpenseFiltersBtn.addEventListener('click', () => {
+      expenseSearch = '';
+      expenseFilterCat = 'all';
+      const input = $('#expenseSearch');
+      if (input) input.value = '';
+      $$('#expenseFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.cat === 'all'));
+      renderExpenses();
+    });
     $$( '#expenseFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#expenseFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5262,6 +5321,18 @@
       attendanceFilterStatus = chip.dataset.status;
       renderAttendance();
     });
+    const clearAttendanceFiltersBtn2 = $('#clearAttendanceFiltersBtn2');
+    if (clearAttendanceFiltersBtn2) clearAttendanceFiltersBtn2.addEventListener('click', () => {
+      attendanceSearch = '';
+      attendanceFilterStatus = 'all';
+      attendanceDate = todayISO();
+      const searchInput = $('#attendanceSearch');
+      const dateInput = $('#attendanceDate');
+      if (searchInput) searchInput.value = '';
+      if (dateInput) dateInput.value = attendanceDate;
+      $$('#attendanceFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.status === 'all'));
+      renderAttendance();
+    });
     $('#markAllPresentBtn').addEventListener('click', markAllPresent);
     $('#clearAttendanceFiltersBtn').addEventListener('click', clearAttendanceFilters);
 
@@ -5271,6 +5342,15 @@
       renderLeaves();
     });
     setupFilterDropdown('leaveSearchWrap', 'leaveSearch', 'leaveFilterDropdown', '#leaveFilters .chip');
+    const clearLeaveFiltersBtn = $('#clearLeaveFilters');
+    if (clearLeaveFiltersBtn) clearLeaveFiltersBtn.addEventListener('click', () => {
+      leaveSearch = '';
+      leaveFilterStatus = 'all';
+      const input = $('#leaveSearch');
+      if (input) input.value = '';
+      $$('#leaveFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.status === 'all'));
+      renderLeaves();
+    });
     $$( '#leaveFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#leaveFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5287,6 +5367,15 @@
       renderSalary();
     });
     setupFilterDropdown('salarySearchWrap', 'salarySearch', 'salaryFilterDropdown', '#salaryFilters .chip');
+    const clearSalaryFiltersBtn = $('#clearSalaryFilters');
+    if (clearSalaryFiltersBtn) clearSalaryFiltersBtn.addEventListener('click', () => {
+      salarySearch = '';
+      salaryFilterStatus = 'all';
+      const input = $('#salarySearch');
+      if (input) input.value = '';
+      $$('#salaryFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.status === 'all'));
+      renderSalary();
+    });
     $$( '#salaryFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#salaryFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5297,6 +5386,20 @@
     });
 
     // Birthdays
+    $('#birthdaySearch').addEventListener('input', (e) => {
+      birthdaySearch = e.target.value;
+      renderBirthdays();
+    });
+    setupFilterDropdown('birthdaySearchWrap', 'birthdaySearch', 'birthdayFilterDropdown', '#birthdayFilters .chip');
+    const clearBirthdayFiltersBtn = $('#clearBirthdayFilters');
+    if (clearBirthdayFiltersBtn) clearBirthdayFiltersBtn.addEventListener('click', () => {
+      birthdaySearch = '';
+      birthdayFilter = 'all';
+      const input = $('#birthdaySearch');
+      if (input) input.value = '';
+      $$('#birthdayFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.btype === 'all'));
+      renderBirthdays();
+    });
     $$( '#birthdayFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#birthdayFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5314,6 +5417,15 @@
     });
     setupFilterDropdown('serviceSearchWrap', 'serviceSearch', 'serviceFilterDropdown', '#serviceFilters .chip', (chip) => {
       serviceFilterStatus = chip.dataset.status;
+      renderServices();
+    });
+    const clearServiceFiltersBtn = $('#clearServiceFilters');
+    if (clearServiceFiltersBtn) clearServiceFiltersBtn.addEventListener('click', () => {
+      serviceSearch = '';
+      serviceFilterStatus = 'all';
+      const input = $('#serviceSearch');
+      if (input) input.value = '';
+      $$('#serviceFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.status === 'all'));
       renderServices();
     });
 
@@ -5427,6 +5539,16 @@
         const emp = currentEmployee();
         if (emp) renderEmpAppointments(emp);
       });
+    });
+    const clearEmpAptFiltersBtn = $('#clearEmpAptFilters');
+    if (clearEmpAptFiltersBtn) clearEmpAptFiltersBtn.addEventListener('click', () => {
+      empAptSearch = '';
+      empAptFilter = 'today';
+      const input = $('#empAptSearch');
+      if (input) input.value = '';
+      $$('#empAptFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.paf === 'today'));
+      const emp = currentEmployee();
+      if (emp) renderEmpAppointments(emp);
     });
 
     // ---- Boot: route by role ----
