@@ -4278,16 +4278,28 @@
 
     if (!session) {
       login.hidden = false;
-      adminApp.style.display = 'none';
-      empApp.hidden = true;
+      if (adminApp) {
+        adminApp.hidden = true;
+        adminApp.style.display = 'none';
+      }
+      if (empApp) {
+        empApp.hidden = true;
+        empApp.style.display = 'none';
+      }
       return;
     }
 
     login.hidden = true;
 
     if (isAdmin()) {
-      adminApp.style.display = '';
-      empApp.hidden = true;
+      if (empApp) {
+        empApp.hidden = true;
+        empApp.style.display = 'none';
+      }
+      if (adminApp) {
+        adminApp.hidden = false;
+        adminApp.style.display = '';
+      }
       goto('dashboard');
     } else if (isEmployee()) {
       if (!currentEmployee()) {
@@ -4297,10 +4309,22 @@
         toast('Your employee record was removed. Please contact the admin.', 'error');
         return;
       }
-      adminApp.style.display = 'none';
-      empApp.hidden = false;
+      if (adminApp) {
+        adminApp.hidden = true;
+        adminApp.style.display = 'none';
+      }
+      if (empApp) {
+        empApp.hidden = false;
+        empApp.style.display = '';
+      }
       empGoto('emp-dash');
+    } else {
+      clearSession();
+      route();
+      return;
     }
+
+    window.scrollTo(0, 0);
   }
 
   function adminLogin(password) {
@@ -4392,6 +4416,19 @@
   let empSection = 'emp-dash';
   let empAptFilter = 'today';
 
+  function renderEmpSidebarFooter(emp) {
+    const footer = $('#empSidebarFooter');
+    if (!footer || !emp) return;
+    footer.innerHTML = `
+      <div class="admin-chip">
+        ${avatarHTML(emp)}
+        <div>
+          <p class="admin-name">${esc(emp.fullName)}</p>
+          <p class="admin-role">Employee Panel${emp.staffRole ? ' · ' + esc(emp.staffRole) : ''}</p>
+        </div>
+      </div>`;
+  }
+
   function attBadge(status) {
     const cls = status === 'Present' ? 'badge-green' : status === 'Late' ? 'badge-amber' : status === 'Absent' ? 'badge-red' : 'badge-sky';
     return `<span class="badge ${cls}">${esc(status || '·')}</span>`;
@@ -4406,6 +4443,7 @@
     $$('#empApp .section').forEach((s) => s.classList.toggle('active', s.id === section));
     $('#empPageTitle').textContent = EMP_SECTIONS[section].title;
     $('#empPageSubtitle').textContent = EMP_SECTIONS[section].sub;
+    renderEmpSidebarFooter(currentEmployee());
     renderEmp(section);
     closeEmpSidebar();
   }
@@ -4476,13 +4514,7 @@
             ${isTodayBirthday(emp.dob) ? '<span class="badge badge-amber">🎂 Birthday today</span>' : ''}
           </div>
         </div>
-        <button class="btn btn-ghost btn-sm" id="empSignOutBtn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Sign Out
-        </button>
       </div>`;
-    const soBtn = $('#empSignOutBtn');
-    if (soBtn) soBtn.addEventListener('click', logout);
 
     // Scoped data
     const apts = db.appointments.filter((a) => a.employeeId === emp.id);
@@ -5272,6 +5304,21 @@
     $$('#empBottomNav [data-emp-section]').forEach((btn) => {
       btn.addEventListener('click', () => empGoto(btn.dataset.empSection));
     });
+
+    const empNavSignout = $('#empNavSignout');
+    if (empNavSignout) {
+      empNavSignout.addEventListener('click', (e) => {
+        e.stopPropagation();
+        logout();
+      });
+      empNavSignout.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          logout();
+        }
+      });
+    }
 
     const empSidebar = $('#empSidebar');
     const empBackdrop = $('#empSidebarBackdrop');
