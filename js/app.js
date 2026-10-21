@@ -814,19 +814,22 @@
 
   /* ================= EMPLOYEES ================= */
   let employeeSearch = '';
+  let employeeFilterStatus = 'all';
 
   function renderEmployees() {
     $('#addEmployeeBtn').style.display = db.employees.length ? '' : 'none';
 
     const q = employeeSearch.toLowerCase();
-    const list = db.employees.filter(
-      (e) =>
+    const list = db.employees.filter((e) => {
+      if (employeeFilterStatus !== 'all' && e.employmentStatus !== employeeFilterStatus) return false;
+      return (
         !q ||
         e.fullName.toLowerCase().includes(q) ||
         e.id.toLowerCase().includes(q) ||
         (e.staffRole || '').toLowerCase().includes(q) ||
         (e.specialties || '').toLowerCase().includes(q)
-    );
+      );
+    });
 
     const tbody = $('#employeeTable tbody');
     const empty = $('#employeeEmpty');
@@ -841,7 +844,7 @@
     empty.style.display = list.length ? 'none' : 'block';
     if (!list.length) {
       empty.querySelector('.empty-title').textContent = 'No matching employees';
-      empty.querySelector('.empty-text').textContent = 'Try a different search term.';
+      empty.querySelector('.empty-text').textContent = 'Try a different filter or search term.';
       tbody.innerHTML = '';
       return;
     }
@@ -1167,6 +1170,7 @@
 
   /* ================= CUSTOMERS ================= */
   let customerSearch = '';
+  let customerFilterStatus = 'all';
 
   function customerStatsData() {
     const today = todayISO();
@@ -1235,6 +1239,9 @@
 
     const q = customerSearch.toLowerCase();
     const list = db.customers.filter((c) => {
+      const due = num(c.totalAmount) - num(c.paidAmount);
+      if (customerFilterStatus === 'dues' && due <= 0) return false;
+      if (customerFilterStatus === 'paid' && due > 0) return false;
       if (!q) return true;
       const emp = db.employees.find((e) => e.id === c.employeeId);
       return (
@@ -1261,7 +1268,7 @@
     empty.style.display = list.length ? 'none' : 'block';
     if (!list.length) {
       empty.querySelector('.empty-title').textContent = 'No matching customers';
-      empty.querySelector('.empty-text').textContent = 'Try a different search term.';
+      empty.querySelector('.empty-text').textContent = 'Try a different filter or search term.';
       tbody.innerHTML = '';
       return;
     }
@@ -2655,14 +2662,16 @@
 
   /* ================= SERVICES ================= */
   let serviceSearch = '';
+  let serviceFilterStatus = 'all';
 
   function renderServices() {
     $('#addServiceBtn').style.display = db.services.length ? '' : 'none';
 
     const q = serviceSearch.toLowerCase();
-    const list = db.services.filter(
-      (s) => !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q)
-    );
+    const list = db.services.filter((s) => {
+      if (serviceFilterStatus !== 'all' && (s.status || 'Active') !== serviceFilterStatus) return false;
+      return !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q);
+    });
 
     const grid = $('#serviceGrid');
     const empty = $('#serviceEmpty');
@@ -2678,7 +2687,7 @@
     if (!list.length) {
       grid.innerHTML = '';
       empty.querySelector('.empty-title').textContent = 'No matching services';
-      empty.querySelector('.empty-text').textContent = 'Try a different search term.';
+      empty.querySelector('.empty-text').textContent = 'Try a different filter or search term.';
       return;
     }
 
@@ -3328,6 +3337,7 @@
 
   /* ================= ATTENDANCE ================= */
   let attendanceSearch = '';
+  let attendanceFilterStatus = 'all';
   let attendanceDate = todayISO();
 
   /* ---- Employee timetables (admin-defined work timings) ---- */
@@ -3480,11 +3490,13 @@
 
   function clearAttendanceFilters() {
     attendanceSearch = '';
+    attendanceFilterStatus = 'all';
     attendanceDate = todayISO();
     const searchInput = $('#attendanceSearch');
     const dateInput = $('#attendanceDate');
     if (searchInput) searchInput.value = '';
     if (dateInput) dateInput.value = attendanceDate;
+    $$('#attendanceFilters .chip').forEach((c) => c.classList.toggle('active', c.dataset.status === 'all'));
     renderAttendance();
     toast('Filters cleared');
   }
@@ -3544,7 +3556,13 @@
       .join('');
 
     const q = attendanceSearch.toLowerCase();
-    const list = db.employees.filter((e) => !q || e.fullName.toLowerCase().includes(q) || (e.staffRole || '').toLowerCase().includes(q) || e.id.toLowerCase().includes(q));
+    let list = db.employees.filter((e) => !q || e.fullName.toLowerCase().includes(q) || (e.staffRole || '').toLowerCase().includes(q) || e.id.toLowerCase().includes(q));
+    if (attendanceFilterStatus !== 'all') {
+      list = list.filter((e) => {
+        const rec = attendanceFor(e.id, date);
+        return attendanceFilterStatus === 'unmarked' ? !rec : rec?.status === attendanceFilterStatus;
+      });
+    }
 
     const wrap = $('#attendanceList');
     const empty = $('#attendanceEmpty');
@@ -3560,7 +3578,7 @@
     if (!list.length) {
       wrap.innerHTML = '';
       empty.querySelector('.empty-title').textContent = 'No matching employees';
-      empty.querySelector('.empty-text').textContent = 'Try a different search term.';
+      empty.querySelector('.empty-text').textContent = 'Try a different filter or search term.';
       return;
     }
 
@@ -5076,10 +5094,45 @@
       logout();
     });
 
+    // Shared search + filter dropdown behaviour
+    const setupFilterDropdown = (wrapId, inputId, dropdownId, chipsSelector, onSelect) => {
+      const wrap = $('#' + wrapId);
+      const input = $('#' + inputId);
+      const dropdown = $('#' + dropdownId);
+      if (!wrap || !input || !dropdown) return;
+      const setOpen = (open) => {
+        dropdown.hidden = !open;
+        input.setAttribute('aria-expanded', String(open));
+      };
+      input.addEventListener('focus', () => setOpen(true));
+      input.addEventListener('click', () => setOpen(true));
+      document.addEventListener('click', (e) => {
+        if (!wrap.contains(e.target)) setOpen(false);
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !dropdown.hidden) {
+          setOpen(false);
+          document.activeElement?.blur?.();
+        }
+      });
+      $$(chipsSelector).forEach((chip) => {
+        chip.addEventListener('click', () => {
+          $$(chipsSelector).forEach((c) => c.classList.remove('active'));
+          chip.classList.add('active');
+          if (onSelect) onSelect(chip);
+          setOpen(false);
+        });
+      });
+    };
+
     // Employee
     $('#addEmployeeBtn').addEventListener('click', () => openEmployeeForm());
     $('#employeeSearch').addEventListener('input', (e) => {
       employeeSearch = e.target.value;
+      renderEmployees();
+    });
+    setupFilterDropdown('employeeSearchWrap', 'employeeSearch', 'employeeFilterDropdown', '#employeeFilters .chip', (chip) => {
+      employeeFilterStatus = chip.dataset.status;
       renderEmployees();
     });
 
@@ -5088,6 +5141,10 @@
     $('#addCustomerBtn').addEventListener('click', () => openCustomerForm());
     $('#customerSearch').addEventListener('input', (e) => {
       customerSearch = e.target.value;
+      renderCustomers();
+    });
+    setupFilterDropdown('customerSearchWrap', 'customerSearch', 'customerFilterDropdown', '#customerFilters .chip', (chip) => {
+      customerFilterStatus = chip.dataset.pay;
       renderCustomers();
     });
 
@@ -5143,6 +5200,7 @@
       appointmentSearch = e.target.value;
       renderAppointments();
     });
+    setupFilterDropdown('appointmentSearchWrap', 'appointmentSearch', 'appointmentFilterDropdown', '#appointmentFilters .chip');
     $$( '#appointmentFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#appointmentFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5158,6 +5216,7 @@
       paymentSearch = e.target.value;
       renderPayments();
     });
+    setupFilterDropdown('paymentSearchWrap', 'paymentSearch', 'paymentFilterDropdown', '#paymentFilters .chip');
     $$( '#paymentFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#paymentFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5179,6 +5238,7 @@
       expenseSearch = e.target.value;
       renderExpenses();
     });
+    setupFilterDropdown('expenseSearchWrap', 'expenseSearch', 'expenseFilterDropdown', '#expenseFilters .chip');
     $$( '#expenseFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#expenseFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5198,6 +5258,10 @@
       attendanceSearch = e.target.value;
       renderAttendance();
     });
+    setupFilterDropdown('attendanceSearchWrap', 'attendanceSearch', 'attendanceFilterDropdown', '#attendanceFilters .chip', (chip) => {
+      attendanceFilterStatus = chip.dataset.status;
+      renderAttendance();
+    });
     $('#markAllPresentBtn').addEventListener('click', markAllPresent);
     $('#clearAttendanceFiltersBtn').addEventListener('click', clearAttendanceFilters);
 
@@ -5206,6 +5270,7 @@
       leaveSearch = e.target.value;
       renderLeaves();
     });
+    setupFilterDropdown('leaveSearchWrap', 'leaveSearch', 'leaveFilterDropdown', '#leaveFilters .chip');
     $$( '#leaveFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#leaveFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5221,6 +5286,7 @@
       salarySearch = e.target.value;
       renderSalary();
     });
+    setupFilterDropdown('salarySearchWrap', 'salarySearch', 'salaryFilterDropdown', '#salaryFilters .chip');
     $$( '#salaryFilters .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         $$( '#salaryFilters .chip').forEach((c) => c.classList.remove('active'));
@@ -5244,6 +5310,10 @@
     $('#addServiceBtn').addEventListener('click', () => openServiceForm());
     $('#serviceSearch').addEventListener('input', (e) => {
       serviceSearch = e.target.value;
+      renderServices();
+    });
+    setupFilterDropdown('serviceSearchWrap', 'serviceSearch', 'serviceFilterDropdown', '#serviceFilters .chip', (chip) => {
+      serviceFilterStatus = chip.dataset.status;
       renderServices();
     });
 

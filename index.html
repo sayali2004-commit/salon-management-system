@@ -211,9 +211,21 @@
         <!-- Employees -->
         <section class="section" id="section-employees">
           <div class="section-toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="employeeSearch" placeholder="Search employees..." />
+            <div class="visit-search-wrap" id="employeeSearchWrap">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="employeeSearch" placeholder="Search employees..." aria-haspopup="true" aria-expanded="false" aria-controls="employeeFilterDropdown" />
+              </div>
+              <div class="filter-dropdown" id="employeeFilterDropdown" role="menu" aria-label="Filter employees by status" hidden>
+                <div class="filter-chips" id="employeeFilters">
+                  <button class="chip active" data-status="all" role="menuitem">All</button>
+                  <button class="chip" data-status="Active" role="menuitem">Active</button>
+                  <button class="chip" data-status="Probation" role="menuitem">Probation</button>
+                  <button class="chip" data-status="On Leave" role="menuitem">On Leave</button>
+                  <button class="chip" data-status="Resigned" role="menuitem">Resigned</button>
+                  <button class="chip" data-status="Terminated" role="menuitem">Terminated</button>
+                </div>
+              </div>
             </div>
             <button class="btn btn-primary" id="addEmployeeBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -246,9 +258,18 @@
         <section class="section" id="section-customers">
           <div class="stat-grid" id="customerStats"></div>
           <div class="section-toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="customerSearch" placeholder="Search customers..." />
+            <div class="visit-search-wrap" id="customerSearchWrap">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="customerSearch" placeholder="Search customers..." aria-haspopup="true" aria-expanded="false" aria-controls="customerFilterDropdown" />
+              </div>
+              <div class="filter-dropdown" id="customerFilterDropdown" role="menu" aria-label="Filter customers by payment status" hidden>
+                <div class="filter-chips" id="customerFilters">
+                  <button class="chip active" data-pay="all" role="menuitem">All</button>
+                  <button class="chip" data-pay="dues" role="menuitem">With Dues</button>
+                  <button class="chip" data-pay="paid" role="menuitem">Fully Paid</button>
+                </div>
+              </div>
             </div>
             <button class="btn btn-primary" id="addCustomerBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -335,21 +356,25 @@
         <section class="section" id="section-appointments">
           <div class="stat-grid" id="appointmentStats"></div>
           <div class="section-toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="appointmentSearch" placeholder="Search appointments..." />
+            <div class="visit-search-wrap" id="appointmentSearchWrap">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="appointmentSearch" placeholder="Search appointments..." aria-haspopup="true" aria-expanded="false" aria-controls="appointmentFilterDropdown" />
+              </div>
+              <div class="filter-dropdown" id="appointmentFilterDropdown" role="menu" aria-label="Filter appointments by status" hidden>
+                <div class="filter-chips" id="appointmentFilters">
+                  <button class="chip active" data-status="all" role="menuitem">All</button>
+                  <button class="chip" data-status="Scheduled" role="menuitem">Scheduled</button>
+                  <button class="chip" data-status="Confirmed" role="menuitem">Confirmed</button>
+                  <button class="chip" data-status="Completed" role="menuitem">Completed</button>
+                  <button class="chip" data-status="Cancelled" role="menuitem">Cancelled</button>
+                </div>
+              </div>
             </div>
             <button class="btn btn-primary" id="addAppointmentBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               New Appointment
             </button>
-          </div>
-          <div class="filter-chips" id="appointmentFilters">
-            <button class="chip active" data-status="all">All</button>
-            <button class="chip" data-status="Scheduled">Scheduled</button>
-            <button class="chip" data-status="Confirmed">Confirmed</button>
-            <button class="chip" data-status="Completed">Completed</button>
-            <button class="chip" data-status="Cancelled">Cancelled</button>
           </div>
           <div class="panel">
             <div class="table-wrap">
@@ -394,9 +419,18 @@
         <!-- Services -->
         <section class="section" id="section-services">
           <div class="section-toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="serviceSearch" placeholder="Search services..." />
+            <div class="visit-search-wrap" id="serviceSearchWrap">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="serviceSearch" placeholder="Search services..." aria-haspopup="true" aria-expanded="false" aria-controls="serviceFilterDropdown" />
+              </div>
+              <div class="filter-dropdown" id="serviceFilterDropdown" role="menu" aria-label="Filter services by status" hidden>
+                <div class="filter-chips" id="serviceFilters">
+                  <button class="chip active" data-status="all" role="menuitem">All</button>
+                  <button class="chip" data-status="Active" role="menuitem">Active</button>
+                  <button class="chip" data-status="Inactive" role="menuitem">Inactive</button>
+                </div>
+              </div>
             </div>
             <button class="btn btn-primary" id="addServiceBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -414,21 +448,25 @@
         <section class="section" id="section-payments">
           <div class="stat-grid" id="paymentStats"></div>
           <div class="section-toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="paymentSearch" placeholder="Search payments..." />
+            <div class="visit-search-wrap" id="paymentSearchWrap">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="paymentSearch" placeholder="Search payments..." aria-haspopup="true" aria-expanded="false" aria-controls="paymentFilterDropdown" />
+              </div>
+              <div class="filter-dropdown" id="paymentFilterDropdown" role="menu" aria-label="Filter payments" hidden>
+                <div class="filter-chips" id="paymentFilters">
+                  <button class="chip active" data-method="all" role="menuitem">All</button>
+                  <button class="chip" data-method="Cash" role="menuitem">Cash</button>
+                  <button class="chip" data-method="online" role="menuitem">Online</button>
+                  <button class="chip" data-status="Paid" role="menuitem">Paid</button>
+                  <button class="chip" data-status="Pending" role="menuitem">Pending</button>
+                </div>
+              </div>
             </div>
             <button class="btn btn-primary" id="addPaymentBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add Payment
             </button>
-          </div>
-          <div class="filter-chips" id="paymentFilters">
-            <button class="chip active" data-method="all">All</button>
-            <button class="chip" data-method="Cash">Cash</button>
-            <button class="chip" data-method="online">Online</button>
-            <button class="chip" data-status="Paid">Paid</button>
-            <button class="chip" data-status="Pending">Pending</button>
           </div>
           <div class="panel">
             <div class="table-wrap">
@@ -459,23 +497,27 @@
         <section class="section" id="section-expenses">
           <div class="stat-grid" id="expenseStats"></div>
           <div class="section-toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="expenseSearch" placeholder="Search expenses..." />
+            <div class="visit-search-wrap" id="expenseSearchWrap">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="expenseSearch" placeholder="Search expenses..." aria-haspopup="true" aria-expanded="false" aria-controls="expenseFilterDropdown" />
+              </div>
+              <div class="filter-dropdown" id="expenseFilterDropdown" role="menu" aria-label="Filter expenses by category" hidden>
+                <div class="filter-chips" id="expenseFilters">
+                  <button class="chip active" data-cat="all" role="menuitem">All</button>
+                  <button class="chip" data-cat="Rent" role="menuitem">Rent</button>
+                  <button class="chip" data-cat="Utilities" role="menuitem">Utilities</button>
+                  <button class="chip" data-cat="Supplies" role="menuitem">Supplies</button>
+                  <button class="chip" data-cat="Salary" role="menuitem">Salary</button>
+                  <button class="chip" data-cat="Marketing" role="menuitem">Marketing</button>
+                  <button class="chip" data-cat="Other" role="menuitem">Other</button>
+                </div>
+              </div>
             </div>
             <button class="btn btn-primary" id="addExpenseBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add Expense
             </button>
-          </div>
-          <div class="filter-chips" id="expenseFilters">
-            <button class="chip active" data-cat="all">All</button>
-            <button class="chip" data-cat="Rent">Rent</button>
-            <button class="chip" data-cat="Utilities">Utilities</button>
-            <button class="chip" data-cat="Supplies">Supplies</button>
-            <button class="chip" data-cat="Salary">Salary</button>
-            <button class="chip" data-cat="Marketing">Marketing</button>
-            <button class="chip" data-cat="Other">Other</button>
           </div>
           <div class="panel">
             <div class="table-wrap">
@@ -505,9 +547,21 @@
         <section class="section" id="section-attendance">
           <div class="stat-grid" id="attendanceStats"></div>
           <div class="section-toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="attendanceSearch" placeholder="Search employees..." />
+            <div class="visit-search-wrap" id="attendanceSearchWrap">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="attendanceSearch" placeholder="Search employees..." aria-haspopup="true" aria-expanded="false" aria-controls="attendanceFilterDropdown" />
+              </div>
+              <div class="filter-dropdown" id="attendanceFilterDropdown" role="menu" aria-label="Filter attendance by status" hidden>
+                <div class="filter-chips" id="attendanceFilters">
+                  <button class="chip active" data-status="all" role="menuitem">All</button>
+                  <button class="chip" data-status="Present" role="menuitem">Present</button>
+                  <button class="chip" data-status="Late" role="menuitem">Late</button>
+                  <button class="chip" data-status="Absent" role="menuitem">Absent</button>
+                  <button class="chip" data-status="Half Day" role="menuitem">Half Day</button>
+                  <button class="chip" data-status="unmarked" role="menuitem">Not Marked</button>
+                </div>
+              </div>
             </div>
             <div class="toolbar-date">
               <label for="attendanceDate">Date</label>
@@ -547,16 +601,20 @@
         <section class="section" id="section-leaves">
           <div class="stat-grid" id="leaveStats"></div>
           <div class="section-toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="leaveSearch" placeholder="Search leave requests..." />
+            <div class="visit-search-wrap" id="leaveSearchWrap">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="leaveSearch" placeholder="Search leave requests..." aria-haspopup="true" aria-expanded="false" aria-controls="leaveFilterDropdown" />
+              </div>
+              <div class="filter-dropdown" id="leaveFilterDropdown" role="menu" aria-label="Filter leave requests by status" hidden>
+                <div class="filter-chips" id="leaveFilters">
+                  <button class="chip active" data-status="all" role="menuitem">All</button>
+                  <button class="chip" data-status="Pending" role="menuitem">Pending</button>
+                  <button class="chip" data-status="Approved" role="menuitem">Approved</button>
+                  <button class="chip" data-status="Rejected" role="menuitem">Rejected</button>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="filter-chips" id="leaveFilters">
-            <button class="chip active" data-status="all">All</button>
-            <button class="chip" data-status="Pending">Pending</button>
-            <button class="chip" data-status="Approved">Approved</button>
-            <button class="chip" data-status="Rejected">Rejected</button>
           </div>
           <div class="panel">
             <div class="table-wrap">
@@ -587,19 +645,23 @@
         <section class="section" id="section-salary">
           <div class="stat-grid" id="salaryStats"></div>
           <div class="section-toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="salarySearch" placeholder="Search salary records..." />
+            <div class="visit-search-wrap" id="salarySearchWrap">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="salarySearch" placeholder="Search salary records..." aria-haspopup="true" aria-expanded="false" aria-controls="salaryFilterDropdown" />
+              </div>
+              <div class="filter-dropdown" id="salaryFilterDropdown" role="menu" aria-label="Filter salary records by status" hidden>
+                <div class="filter-chips" id="salaryFilters">
+                  <button class="chip active" data-status="all" role="menuitem">All</button>
+                  <button class="chip" data-status="Paid" role="menuitem">Paid</button>
+                  <button class="chip" data-status="Pending" role="menuitem">Pending</button>
+                </div>
+              </div>
             </div>
             <button class="btn btn-primary" id="addSalaryBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Pay Salary
             </button>
-          </div>
-          <div class="filter-chips" id="salaryFilters">
-            <button class="chip active" data-status="all">All</button>
-            <button class="chip" data-status="Paid">Paid</button>
-            <button class="chip" data-status="Pending">Pending</button>
           </div>
           <div class="panel">
             <div class="table-wrap">

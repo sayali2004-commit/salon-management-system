@@ -2558,4 +2558,5 @@ body {
 }
 @media (min-width: 640px) {
   .emp-apt-toolbar .visit-search-wrap { flex: 1 1 220px; max-width: 380px; }
+  .section-toolbar > .visit-search-wrap { flex: 1 1 220px; max-width: 380px; }
 }
