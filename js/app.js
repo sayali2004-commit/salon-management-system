@@ -1840,7 +1840,7 @@
         <div class="field">
           <label>Payment Method <span class="req">*</span></label>
           <select name="paymentMethod" required>
-            ${['Cash', 'UPI', 'Card', 'Bank Transfer'].map((m) => `<option ${(visit?.paymentMethod || 'Cash') === m ? 'selected' : ''}>${m}</option>`).join('')}
+            ${['Cash', 'UPI'].map((m) => `<option ${(visit?.paymentMethod || 'Cash') === m ? 'selected' : ''}>${m}</option>`).join('')}
           </select>
         </div>
         <div class="field">
@@ -2965,7 +2965,7 @@
   }
 
   function payMethodRadios(selected) {
-    const methods = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
+    const methods = ['Cash', 'UPI'];
     return `<div class="pay-methods">
       ${methods
         .map(
@@ -3278,7 +3278,7 @@
         <div class="field">
           <label>Paid Via <span class="req">*</span></label>
           <select name="method" required>
-            ${['Cash', 'UPI', 'Card', 'Bank Transfer'].map((m) => `<option ${(exp?.method || 'Cash') === m ? 'selected' : ''}>${m}</option>`).join('')}
+            ${['Cash', 'UPI'].map((m) => `<option ${(exp?.method || 'Cash') === m ? 'selected' : ''}>${m}</option>`).join('')}
           </select>
         </div>
 
@@ -4038,7 +4038,7 @@
       return;
     }
 
-    const methods = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
+    const methods = ['Cash', 'UPI'];
 
     const net = num(sal?.basic) + num(sal?.bonus) - num(sal?.deductions);
 
