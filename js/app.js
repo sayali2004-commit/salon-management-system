@@ -857,16 +857,12 @@
             ${avatarHTML(e)}
             <div>
               <div class="person-name">${esc(e.fullName)}</div>
-              <div class="person-meta">${esc(e.staffRole || '')}</div>
             </div>
           </div>
         </td>
         <td data-label="Staff Role">${esc(e.staffRole || '·')}</td>
-        <td data-label="Specialties">${esc(e.specialties || '·')}</td>
         <td data-label="Mobile">${esc(e.mobile || '·')}</td>
-        <td data-label="Salary">${e.salary ? `<strong>${fmtMoney(e.salary)}</strong>` : '·'}</td>
         <td data-label="Status">${employeeStatusCell(e)}</td>
-        <td data-label="Joining Date">${fmtDate(e.joiningDate)}</td>
         <td class="col-actions">
           <div class="row-actions">
             <button class="icon-action" data-act="view" title="View details">
@@ -1273,7 +1269,6 @@
 
     tbody.innerHTML = list
       .map((c) => {
-        const due = num(c.totalAmount) - num(c.paidAmount);
         return `
       <tr data-id="${esc(c.id)}">
         <td data-label="Customer">
@@ -1287,11 +1282,6 @@
         </td>
         <td data-label="Mobile">${esc(c.mobile || '·')}</td>
         <td data-label="Email">${esc(c.email || '·')}</td>
-        <td data-label="Assigned To">${esc(db.employees.find((e) => e.id === c.employeeId)?.fullName || '·')}</td>
-        <td data-label="Payment">
-          ${c.totalAmount ? `<strong>${fmtMoney(c.totalAmount)}</strong>` : '·'} ${c.paymentStatus ? payStatusBadge(c.paymentStatus) : ''}
-          ${due > 0 ? `<div class="person-meta" style="color:var(--red)">Due ${fmtMoney(due)}</div>` : ''}
-        </td>
         <td data-label="Date of Birth">${fmtDate(c.dob)}${isTodayBirthday(c.dob) ? ' 🎂' : ''}</td>
         <td class="col-actions">
           <div class="row-actions">
@@ -1303,9 +1293,6 @@
             </button>
             <button class="icon-action" data-act="edit" title="Edit">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            </button>
-            <button class="icon-action danger" data-act="delete" title="Delete">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           </div>
         </td>
@@ -4232,7 +4219,6 @@
   const EMPLOYEE_DATA_SECTIONS = new Set([
     'emp-dash', 'emp-appointments', 'emp-visits', 'emp-attendance',
     'emp-leaves', 'emp-salary', 'emp-profile', 'emp-customers',
-    'emp-services', 'emp-schedule', 'emp-notifications',
   ]);
 
   function isAdminSection(section) {
@@ -4411,12 +4397,9 @@
     'emp-dash': { title: 'Dashboard', sub: 'Your personal work overview' },
     'emp-appointments': { title: 'My Appointments', sub: 'Your scheduled & completed appointments' },
     'emp-customers': { title: 'My Customers', sub: 'Customers assigned to you' },
-    'emp-services': { title: 'My Services', sub: 'Services & tasks assigned to you' },
     'emp-visits': { title: 'My Visits', sub: 'Visits assigned to you' },
-    'emp-schedule': { title: 'My Schedule', sub: 'Your shift timetable & upcoming schedule' },
     'emp-attendance': { title: 'My Attendance', sub: 'Check in and review your attendance' },
     'emp-leaves': { title: 'Leave Requests', sub: 'Request leave and track approvals' },
-    'emp-notifications': { title: 'Notifications', sub: 'Leave approvals & system alerts' },
     'emp-salary': { title: 'My Salary', sub: 'Your salary records & payments' },
     'emp-profile': { title: 'My Profile', sub: 'Your personal & employment details' },
   };
@@ -4452,23 +4435,14 @@
       case 'emp-customers':
         renderEmpCustomers(emp);
         break;
-      case 'emp-services':
-        renderEmpServices(emp);
-        break;
       case 'emp-visits':
         renderEmpVisits(emp);
-        break;
-      case 'emp-schedule':
-        renderEmpSchedule(emp);
         break;
       case 'emp-attendance':
         renderEmpAttendance(emp);
         break;
       case 'emp-leaves':
         renderEmpLeaves(emp);
-        break;
-      case 'emp-notifications':
-        renderEmpNotifications(emp);
         break;
       case 'emp-salary':
         renderEmpSalary(emp);
@@ -4521,8 +4495,6 @@
     const presentDays = monthRecs.filter((a) => a.status === 'Present' || a.status === 'Late' || a.status === 'Half Day').length;
     const myLeaves = db.leaves.filter((l) => l.employeeId === emp.id);
     const pendingLeaves = myLeaves.filter((l) => l.status === 'Pending').length;
-    const salaryThisMonth = db.salaries.find((s) => s.employeeId === emp.id && s.month === thisMonth);
-    const salaryPaid = db.salaries.filter((s) => s.employeeId === emp.id && s.status === 'Paid').reduce((t, s) => t + num(s.net), 0);
 
     const icons = {
       cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
@@ -4539,7 +4511,6 @@
       { label: 'My Visits', value: visitsDone, sub: `of ${myVisits.length} completed`, icon: 'visit', accent: 'var(--violet)', bg: 'var(--violet-50)' },
       { label: "Today's Attendance", value: todayRec ? todayRec.status : 'Not marked', sub: todayRec ? `Check-in ${todayRec.checkIn || '·'}` : 'Tap Check In below', icon: 'att', accent: todayRec ? 'var(--green)' : 'var(--amber)', bg: todayRec ? 'var(--green-50)' : 'var(--amber-50)' },
       { label: 'Pending Leaves', value: pendingLeaves, sub: `${myLeaves.length} request(s)`, icon: 'leave', accent: 'var(--amber)', bg: 'var(--amber-50)' },
-      { label: 'Salary This Month', value: salaryThisMonth ? fmtMoney(salaryThisMonth.net) : '—', sub: salaryThisMonth ? salaryStatusBadge(salaryThisMonth.status) : `Paid total ${fmtMoney(salaryPaid)}`, icon: 'pay', accent: 'var(--violet)', bg: 'var(--violet-50)' },
     ];
 
     $('#empDashStats').innerHTML = stats
@@ -4575,6 +4546,12 @@
     } else {
       qaCheckin.disabled = false;
       qaCheckin.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Check In Now`;
+    }
+
+    const notifLabel = $('#empQaNotifLabel');
+    if (notifLabel) {
+      const count = empNotificationItems(emp).length;
+      notifLabel.textContent = count ? `Notifications (${count})` : 'Notifications';
     }
 
     // Today's schedule
@@ -4892,74 +4869,8 @@
       : `<div class="empty-state empty-inline"><p class="empty-text">No customers assigned to you yet.</p></div>`;
   }
 
-  /* ---- My Services / Tasks ---- */
-  function renderEmpServices(emp) {
-    const specialties = (emp.specialties || '').split(/[,&]/).map((s) => s.trim()).filter(Boolean);
-    const list = db.services.filter((s) => {
-      if (specialties.length === 0) return false;
-      return specialties.some((sp) => String(s.name || '').toLowerCase().includes(sp.toLowerCase()) || String(sp || '').toLowerCase().includes(String(s.name || '').toLowerCase()));
-    });
-
-    $('#empServicesList').innerHTML = list.length
-      ? list
-          .map((s) => {
-            const apts = db.appointments.filter((a) => a.employeeId === emp.id && a.serviceId === s.id).length;
-            const visits = db.visits.filter((v) => v.employeeId === emp.id && v.serviceId === s.id).length;
-            return `
-        <div class="emp-list-item">
-          <div class="eli-info">
-            <div class="eli-t">${esc(s.name || 'Service')}</div>
-            <div class="eli-s">${fmtMoney(s.price)} · ${esc(s.duration || '·')} min</div>
-            <div class="eli-s">${apts} appointment(s) · ${visits} visit(s)</div>
-          </div>
-          <div class="eli-right">
-            <span class="badge badge-sky">Assigned</span>
-          </div>
-        </div>`;
-          })
-          .join('')
-      : `<div class="empty-state empty-inline"><p class="empty-text">No services assigned to you. Check your specialties in My Profile.</p></div>`;
-  }
-
-  /* ---- My Schedule (timetable + upcoming appointments) ---- */
-  function renderEmpSchedule(emp) {
-    const today = todayISO();
-    const tt = getTimetable(emp.id);
-    const upcoming = db.appointments
-      .filter((a) => a.employeeId === emp.id && a.date >= today && (a.status === 'Scheduled' || a.status === 'Confirmed'))
-      .sort((a, b) => `${a.date || ''}T${a.time || ''}`.localeCompare(`${b.date || ''}T${b.time || ''}`));
-
-    $('#empScheduleTimetable').innerHTML = tt
-      ? `
-      <div class="panel-quick-row">
-        <div class="ps-cell"><div class="ps-n">${esc(tt.checkIn)}</div><div class="ps-l">Check In</div></div>
-        <div class="ps-cell"><div class="ps-n">${esc(tt.checkOut)}</div><div class="ps-l">Check Out</div></div>
-        <div class="ps-cell"><div class="ps-n">${esc(tt.workHours)}h</div><div class="ps-l">Work Hours</div></div>
-        <div class="ps-cell"><div class="ps-n">${esc(tt.halfDayTime)}</div><div class="ps-l">Half Day After</div></div>
-      </div>`
-      : `<div class="empty-state empty-inline"><p class="empty-text">No shift timetable assigned to you.</p></div>`;
-
-    $('#empScheduleUpcoming').innerHTML = upcoming.length
-      ? upcoming
-          .map((a) => {
-            const cus = db.customers.find((c) => c.id === a.customerId);
-            const svc = db.services.find((s) => s.id === a.serviceId);
-            return `
-        <div class="emp-list-item">
-          <div class="eli-info">
-            <div class="eli-t">${esc(a.serviceName || svc?.name || 'Appointment')}</div>
-            <div class="eli-s">${esc(cus?.fullName || 'Customer')}${cus?.mobile ? ' · ' + esc(cus.mobile) : ''}</div>
-            <div class="eli-s">${fmtDate(a.date)} · ${esc(a.time || '·')}</div>
-          </div>
-          <div class="eli-right">${appointmentStatusBadge(a.status)}</div>
-        </div>`;
-          })
-          .join('')
-      : `<div class="empty-state empty-inline"><p class="empty-text">No upcoming appointments.</p></div>`;
-  }
-
-  /* ---- Notifications ---- */
-  function renderEmpNotifications(emp) {
+  /* ---- Notifications (dashboard button) ---- */
+  function empNotificationItems(emp) {
     const pendingLeaves = db.leaves.filter((l) => l.employeeId === emp.id && l.status === 'Pending');
     const approvedLeaves = db.leaves.filter((l) => l.employeeId === emp.id && l.status === 'Approved');
     const rejectedLeaves = db.leaves.filter((l) => l.employeeId === emp.id && l.status === 'Rejected');
@@ -5000,7 +4911,14 @@
       });
     }
 
-    $('#empNotificationsList').innerHTML = items.length
+    return items;
+  }
+
+  function openEmpNotifications() {
+    const emp = currentEmployee();
+    if (!emp) return;
+    const items = empNotificationItems(emp);
+    const body = items.length
       ? items
           .map((it) => {
             const typeCls = it.type === 'approved' ? 'badge-green' : it.type === 'rejected' ? 'badge-red' : it.type === 'pending' ? 'badge-amber' : 'badge-sky';
@@ -5018,6 +4936,17 @@
           })
           .join('')
       : `<div class="empty-state empty-inline"><p class="empty-text">No new notifications.</p></div>`;
+
+    openModal({
+      title: 'Notifications',
+      subtitle: 'Leave approvals & system alerts',
+      size: 'md',
+      body,
+      footer: `<button class="btn btn-primary" data-act="close">Close</button>`,
+      onOpen: (wrap, close) => {
+        wrap.querySelector('[data-act="close"]').addEventListener('click', close);
+      },
+    });
   }
 
   function closeEmpSidebar() {
@@ -5349,6 +5278,7 @@
       const emp = currentEmployee();
       if (emp) openLeaveForm(null, { employeeId: emp.id });
     });
+    $('#empQaNotifications').addEventListener('click', () => openEmpNotifications());
     $('#empLeaveRequestBtn').addEventListener('click', () => {
       const emp = currentEmployee();
       if (emp) openLeaveForm(null, { employeeId: emp.id });
