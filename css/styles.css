@@ -2520,23 +2520,23 @@ body {
   left: 0;
   right: 0;
   z-index: 300;
-  padding: 10px;
+  padding: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: var(--shadow-lg);
 }
 .filter-dropdown[hidden] { display: none; }
 .filter-dropdown .filter-chips {
   flex-direction: column;
   flex-wrap: nowrap;
-  gap: 2px;
+  gap: 4px;
   margin-bottom: 0;
   overflow: visible;
 }
 .filter-dropdown .chip {
   width: 100%;
-  padding: 9px 12px;
+  padding: 10px 12px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -2559,4 +2559,26 @@ body {
 @media (min-width: 640px) {
   .emp-apt-toolbar .visit-search-wrap { flex: 1 1 220px; max-width: 380px; }
   .section-toolbar > .visit-search-wrap { flex: 1 1 220px; max-width: 380px; }
+}
+
+/* ---------- Admin sidebar sign out (icon only) ---------- */
+.admin-signout {
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.admin-signout svg { width: 17px; height: 17px; }
+.admin-signout:hover {
+  color: var(--red);
+  background: var(--red-50);
+  border-color: var(--red);
 }
