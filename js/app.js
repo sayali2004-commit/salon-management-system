@@ -4329,15 +4329,43 @@
     );
   }
 
+  /* Inline login error (shown inside the login card — the toast is
+     rendered behind the login overlay because of z-index 200 vs 400) */
+  function showLoginError(msg) {
+    const el = $('#loginError');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.hidden = !msg;
+  }
+
+  function clearLoginError() {
+    showLoginError('');
+    ['loginUsername', 'loginPassword'].forEach((id) => {
+      const f = $('#' + id);
+      if (f) f.classList.remove('input-invalid');
+    });
+  }
+
+  function markLoginInvalid() {
+    ['loginUsername', 'loginPassword'].forEach((id) => {
+      const f = $('#' + id);
+      if (f) f.classList.add('input-invalid');
+    });
+  }
+
   function loginUser(username, password) {
     const u = String(username || '').trim();
     const p = String(password || '');
     if (!u || !p) {
-      toast('Enter your username and password.', 'error');
+      const msg = 'Please enter both your username and password.';
+      showLoginError(msg);
+      markLoginInvalid();
+      toast(msg, 'error');
       return false;
     }
 
     if (u.toLowerCase() === getAdminUsername() && p === getAdminPassword()) {
+      showLoginError('');
       saveSession({ role: 'admin', loggedInAt: new Date().toISOString() });
       toast('Welcome back, Admin');
       route();
@@ -4346,12 +4374,19 @@
 
     const emp = findEmployeeByLoginName(u);
     if (emp && employeePassword(emp) === p) {
+      showLoginError('');
       saveSession({ role: 'employee', employeeId: emp.id, loggedInAt: new Date().toISOString() });
       toast(`Welcome, ${emp.fullName}!`);
       route();
       return true;
     }
 
+    const msg =
+      emp || u.toLowerCase() === getAdminUsername()
+        ? 'Incorrect password. Please check your password and try again.'
+        : `No account found for username "${u}". Please check the username and try again.`;
+    showLoginError(msg);
+    markLoginInvalid();
     toast('Invalid username or password.', 'error');
     return false;
   }
@@ -5405,11 +5440,18 @@
         const password = $('#loginPassword').value;
         if (loginUser(username, password)) {
           loginForm.reset();
+          clearLoginError();
           const pw = $('#loginPassword');
           if (pw) pw.type = 'password';
           const show = $('#loginShowBtn');
           if (show) show.textContent = 'Show';
         }
+      });
+
+      // Clear the error message as soon as the user starts correcting input
+      ['loginUsername', 'loginPassword'].forEach((id) => {
+        const field = $('#' + id);
+        if (field) field.addEventListener('input', clearLoginError);
       });
     }
 

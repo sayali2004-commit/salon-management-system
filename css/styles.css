@@ -1894,6 +1894,38 @@ svg { width: 18px; height: 18px; flex-shrink: 0; }
 }
 .login-hint strong { color: var(--text-2); }
 
+/* Login error message (inline, visible above the login overlay) */
+.login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 16px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: var(--red-50);
+  border: 1px solid rgba(176, 90, 92, 0.35);
+  color: var(--red);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.55;
+  text-align: left;
+  animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.login-error[hidden] { display: none; }
+.login-error::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--red);
+}
+.login-field input.input-invalid {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(176, 90, 92, 0.14);
+}
+
 /* Employee sidebar footer */
 .emp-user-chip { display: flex; align-items: center; gap: 11px; }
 .emp-user-chip .info { flex: 1; min-width: 0; }
