@@ -1894,33 +1894,74 @@ svg { width: 18px; height: 18px; flex-shrink: 0; }
 }
 .login-hint strong { color: var(--text-2); }
 
-/* Login error message (inline, visible above the login overlay) */
-.login-error {
+/* ---------- Login error popup ----------
+   Sits on its own layer above .login-screen (z-index 400).
+   The shared .modal-root is only z-index 100, so it cannot be used here. */
+.login-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
   display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-top: 16px;
-  padding: 11px 13px;
-  border-radius: 12px;
-  background: var(--red-50);
-  border: 1px solid rgba(176, 90, 92, 0.35);
-  color: var(--red);
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 1.55;
-  text-align: left;
-  animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
 }
-.login-error[hidden] { display: none; }
-.login-error::before {
-  content: '';
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  margin-top: 5px;
+.login-popup[hidden] { display: none; }
+
+.login-popup-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(14, 16, 21, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  animation: fadeIn 0.18s ease;
+}
+
+.login-popup-card {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  padding: 28px 24px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 30px 80px -32px rgba(48, 42, 43, 0.45);
+  text-align: center;
+  animation: modalIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-popup-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
-  background: var(--red);
+  background: var(--red-50);
+  border: 1px solid rgba(176, 90, 92, 0.3);
+  color: var(--red);
 }
+.login-popup-icon svg { width: 28px; height: 28px; }
+
+.login-popup-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.login-popup-msg {
+  margin: 0 0 22px;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.login-popup-btn { width: 100%; }
+
 .login-field input.input-invalid {
   border-color: var(--red);
   box-shadow: 0 0 0 3px rgba(176, 90, 92, 0.14);

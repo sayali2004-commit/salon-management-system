@@ -4329,13 +4329,29 @@
     );
   }
 
-  /* Inline login error (shown inside the login card — the toast is
-     rendered behind the login overlay because of z-index 200 vs 400) */
+  /* Login error popup — shown above the login overlay (z-index 600).
+     The shared .modal-root is only z-index 100, so it would render
+     behind the login screen (400); this dedicated layer avoids that. */
+  let loginPopupOpen = false;
+
   function showLoginError(msg) {
-    const el = $('#loginError');
-    if (!el) return;
-    el.textContent = msg || '';
-    el.hidden = !msg;
+    const pop = $('#loginPopup');
+    const msgEl = $('#loginPopupMsg');
+    if (!pop || !msgEl) return;
+    msgEl.textContent = msg || '';
+    pop.hidden = !msg;
+    loginPopupOpen = !!msg;
+    if (msg) {
+      const ok = $('#loginPopupOk');
+      if (ok) setTimeout(() => ok.focus(), 60);
+    }
+  }
+
+  function closeLoginPopup() {
+    if (!loginPopupOpen) return;
+    showLoginError('');
+    const u = $('#loginUsername');
+    if (u) u.focus();
   }
 
   function clearLoginError() {
@@ -5452,6 +5468,24 @@
       ['loginUsername', 'loginPassword'].forEach((id) => {
         const field = $('#' + id);
         if (field) field.addEventListener('input', clearLoginError);
+      });
+    }
+
+    // ---- Login error popup ----
+    const loginPopup = $('#loginPopup');
+    if (loginPopup) {
+      const okBtn = $('#loginPopupOk');
+      if (okBtn) okBtn.addEventListener('click', closeLoginPopup);
+
+      loginPopup.querySelectorAll('[data-login-popup-close]').forEach((el) => {
+        el.addEventListener('click', closeLoginPopup);
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && loginPopupOpen) {
+          e.preventDefault();
+          closeLoginPopup();
+        }
       });
     }
 

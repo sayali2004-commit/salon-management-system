@@ -35,8 +35,6 @@
           </div>
         </div>
 
-        <p class="login-error" id="loginError" role="alert" aria-live="assertive" hidden></p>
-
         <button type="submit" class="btn btn-primary login-submit">Sign In</button>
         <p class="login-hint">Use the username &amp; password given by your admin.<br />Default admin login: <strong>admin / admin123</strong></p>
       </form>
@@ -950,6 +948,23 @@
         </button>
       </nav>
     </div>
+
+  <!-- Login error popup (own layer: must sit ABOVE .login-screen z-index 400) -->
+  <div class="login-popup" id="loginPopup" hidden>
+    <div class="login-popup-backdrop" data-login-popup-close></div>
+    <div class="login-popup-card" role="alertdialog" aria-modal="true" aria-labelledby="loginPopupTitle" aria-describedby="loginPopupMsg">
+      <div class="login-popup-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="7" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      <h2 class="login-popup-title" id="loginPopupTitle">Sign-in failed</h2>
+      <p class="login-popup-msg" id="loginPopupMsg"></p>
+      <button type="button" class="btn btn-primary login-popup-btn" id="loginPopupOk">Try Again</button>
+    </div>
+  </div>
 
   <!-- Modal root -->
   <div class="modal-root" id="modalRoot"></div>
